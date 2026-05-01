@@ -32,6 +32,8 @@ Chrome MV3 extension for estimating the expected value of TCG Japan gacha pools.
 - SNKRDUNK search uses `https://snkrdunk.com/search?keywords=...`.
 - SNKRDUNK sales data is read from `/v1/apparels/{id}/sales-chart/used?salesChartOptionId=...`.
 - If the selected SNKRDUNK condition has no sales-chart data, the extension leaves the prize unpriced instead of using a mixed-condition listing price.
+- When Rank 4 is shown as `其他可用`, the extension creates an `其他可用 / 安慰獎` row for the missing draw count. If the API exposes a placeholder `point` value, that value is used automatically; otherwise it is marked for manual entry.
+- `rank9` / last-one prizes are shown in a separate helper panel and are not folded into the main single-draw EV automatically.
 - The panel shows a warning when the pool stock differs from the published prize quantity sum.
 
 ## Verify Parser Logic

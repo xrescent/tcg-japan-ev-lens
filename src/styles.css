@@ -308,6 +308,93 @@
   text-align: right;
 }
 
+.tcg-ev-last-prize {
+  background: #fff7ed;
+  border-bottom: 1px solid #fed7aa;
+  padding: 10px 12px;
+}
+
+.tcg-ev-last-prize-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.tcg-ev-last-prize-head strong {
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 950;
+  line-height: 1.35;
+}
+
+.tcg-ev-last-prize-head span {
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  color: #7c2d12;
+  display: -webkit-box;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.45;
+  max-width: 210px;
+  overflow: hidden;
+  text-align: right;
+}
+
+.tcg-ev-last-prize p {
+  color: #7c2d12;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.45;
+  margin: 6px 0 8px;
+}
+
+.tcg-ev-last-prize-grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1.15fr) repeat(3, minmax(0, 1fr));
+}
+
+.tcg-ev-last-prize-grid label,
+.tcg-ev-last-prize-grid div {
+  background: #fff;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  color: #7c2d12;
+  display: flex;
+  flex-direction: column;
+  font-size: 10px;
+  font-weight: 900;
+  gap: 3px;
+  justify-content: center;
+  min-height: 46px;
+  padding: 6px;
+}
+
+.tcg-ev-last-prize-grid input {
+  border: 1px solid #fdba74;
+  border-radius: 5px;
+  color: #18212b;
+  font-size: 12px;
+  font-weight: 900;
+  height: 24px;
+  padding: 2px 5px;
+  width: 100%;
+}
+
+.tcg-ev-last-prize-grid span {
+  color: #9a3412;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.tcg-ev-last-prize-grid strong {
+  color: #18212b;
+  font-size: 12px;
+  font-weight: 950;
+  overflow-wrap: anywhere;
+}
+
 .tcg-ev-card-list {
   display: flex;
   flex-direction: column;
@@ -365,6 +452,21 @@
   aspect-ratio: .716;
   border-radius: 4px;
   object-fit: cover;
+  width: 42px;
+}
+
+.tcg-ev-card-placeholder {
+  align-items: center;
+  aspect-ratio: .716;
+  background: #e6ecea;
+  border: 1px solid #cbd8d5;
+  border-radius: 4px;
+  color: #63727d;
+  display: flex;
+  font-size: 10px;
+  font-weight: 900;
+  justify-content: center;
+  line-height: 1;
   width: 42px;
 }
 
@@ -530,6 +632,19 @@
   .tcg-ev-bulk-row small {
     grid-column: 2 / -1;
     text-align: left;
+  }
+
+  .tcg-ev-last-prize-head {
+    flex-direction: column;
+  }
+
+  .tcg-ev-last-prize-head span {
+    max-width: none;
+    text-align: left;
+  }
+
+  .tcg-ev-last-prize-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .tcg-ev-card {

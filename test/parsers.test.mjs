@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  buildConsolationPrizeSummary,
   buildSnkrdunkSearchQuery,
   parseLatestSalesPoint,
   parseSalesHistoryOptions,
@@ -81,6 +82,34 @@ assert.deepEqual(parseLatestSalesPoint({ points: [[2, 1200], [1, 900]] }), {
   timestamp: 2,
   price: 1200,
   date: "1970-01-01T00:00:00.002Z"
+});
+
+const packageWithConsolation = {
+  number: 60,
+  package_cards: [
+    { rank: 1, number: 1, point: 50000 },
+    { rank: 2, number: 1, point: 30000 },
+    { rank: 2, number: 1, point: 15000 },
+    { rank: 3, number: 1, point: 15000 },
+    { rank: 3, number: 3, point: 6500 },
+    { rank: 3, number: 2, point: 6500 },
+    { rank: 3, number: 2, point: 6500 },
+    { rank: 9, number: 1, point: 10000 },
+    { rank: 4, number: null, point: 500, name: null, card_id: null },
+    { rank: 4, number: null, point: 500, name: null, card_id: null },
+    { rank: 4, number: null, point: 500, name: null, card_id: null },
+    { rank: 4, number: null, point: 500, name: null, card_id: null },
+    { rank: 4, number: null, point: 500, name: null, card_id: null },
+    { rank: 4, number: null, point: 500, name: null, card_id: null }
+  ]
+};
+
+assert.deepEqual(buildConsolationPrizeSummary(packageWithConsolation), {
+  rank: 4,
+  quantity: 49,
+  point: 500,
+  source: "api_point",
+  placeholderCount: 6
 });
 
 console.log("parser tests passed");

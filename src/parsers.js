@@ -295,6 +295,31 @@ export function parseLatestSalesPoint(chartJson) {
   };
 }
 
+export function buildConsolationPrizeSummary(packageData) {
+  const cards = Array.isArray(packageData?.package_cards) ? packageData.package_cards : [];
+  const normalVisibleQuantity = cards
+    .filter((card) => Number(card?.rank) !== 9 && Number(card?.number) > 0)
+    .reduce((sum, card) => sum + Number(card.number || 0), 0);
+  const totalQuantity = Number(packageData?.number || 0);
+  const missingQuantity = totalQuantity > normalVisibleQuantity ? totalQuantity - normalVisibleQuantity : 0;
+  const placeholders = cards.filter((card) => {
+    return Number(card?.rank) === 4 && (!card?.name || !card?.card_id || !Number(card?.number));
+  });
+  const apiPoint = placeholders
+    .map((card) => Number(card?.point))
+    .find((point) => Number.isFinite(point) && point > 0);
+
+  if (!missingQuantity && !placeholders.length) return null;
+
+  return {
+    rank: 4,
+    quantity: missingQuantity || null,
+    point: apiPoint || null,
+    source: apiPoint ? "api_point" : "missing_rank4",
+    placeholderCount: placeholders.length
+  };
+}
+
 export function normalizePackageCards(packageData) {
   return [...(packageData?.package_cards || [])]
     .filter((card) => Number(card?.number) > 0)

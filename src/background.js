@@ -1,4 +1,5 @@
 import {
+  buildConsolationPrizeSummary,
   buildSnkrdunkSearchQuery,
   normalizePackageCards,
   parseLatestSalesPoint,
@@ -55,6 +56,7 @@ async function getPackage(payload = {}) {
   return {
     package: {
       ...packageData,
+      consolation_prize: buildConsolationPrizeSummary(packageData),
       package_cards: normalizePackageCards(packageData)
     }
   };

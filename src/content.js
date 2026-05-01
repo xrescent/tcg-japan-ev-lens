@@ -12,6 +12,11 @@
       4: ""
     },
     bulkOnlyNonPsa: false,
+    domSignals: {
+      rank4OtherAvailable: false,
+      lastPrize: null
+    },
+    lastPrizeValue: "",
     loading: false,
     collapsed: false,
     statusText: "待機中"
@@ -53,6 +58,8 @@
     state.manualPrices.clear();
     state.rankBulkPrices = { 3: "", 4: "" };
     state.bulkOnlyNonPsa = false;
+    state.domSignals = { rank4OtherAvailable: false, lastPrize: null };
+    state.lastPrizeValue = "";
     loadPackage(page, force);
   }
 
@@ -68,12 +75,24 @@
       });
 
       state.packageData = response.package;
-      state.cards = mergeDomPsaHints(response.package.package_cards || []);
+      const packageCards = response.package.package_cards || [];
+      state.domSignals = collectDomSignals(packageCards);
+      state.cards = appendConsolationPrizeCard(
+        mergeDomPsaHints(packageCards.filter((card) => Number(card.rank) !== 9)),
+        response.package
+      );
       state.statusText = `搜尋 SNKRDUNK 成交價 0/${state.cards.length}`;
       render();
 
-      await runWithConcurrency(state.cards, 3, async (card, index) => {
-        state.prices.set(card.id, { status: "loading" });
+      await runWithConcurrency(state.cards, 3, async (card) => {
+        if (shouldSkipAutoPricing(card)) {
+          state.prices.set(cardKey(card), buildPlaceholderPrizePrice(card));
+          updatePricingStatus();
+          render();
+          return;
+        }
+
+        state.prices.set(cardKey(card), { status: "loading" });
         render();
 
         try {
@@ -82,16 +101,15 @@
             force: forcePrices
           });
           if (priceResponse.cacheHit) priceResponse.price.cacheHit = true;
-          state.prices.set(card.id, priceResponse.price);
+          state.prices.set(cardKey(card), priceResponse.price);
         } catch (error) {
-          state.prices.set(card.id, {
+          state.prices.set(cardKey(card), {
             status: "error",
             error: error.message || String(error)
           });
         }
 
-        const done = [...state.prices.values()].filter((price) => price.status !== "loading").length;
-        state.statusText = `搜尋 SNKRDUNK 成交價 ${Math.min(done, index + 1)}/${state.cards.length}`;
+        updatePricingStatus();
         render();
       });
 
@@ -102,6 +120,34 @@
       state.loading = false;
       render();
     }
+  }
+
+  function updatePricingStatus() {
+    const done = [...state.prices.values()].filter((price) => price.status !== "loading").length;
+    state.statusText = `搜尋 SNKRDUNK 成交價 ${Math.min(done, state.cards.length)}/${state.cards.length}`;
+  }
+
+  function buildPlaceholderPrizePrice(card) {
+    const point = Number(card?.point);
+    const query = fallbackSearchQuery(card);
+
+    if (Number.isFinite(point) && point > 0) {
+      return {
+        status: "ok",
+        source: "api_point",
+        price: point,
+        targetCondition: "point",
+        query,
+        reason: card?.is_consolation ? "consolation_api_point" : "rank4_api_point"
+      };
+    }
+
+    return {
+      status: "manual_required",
+      reason: card?.is_consolation ? "missing_consolation_point" : "rank4_other_available",
+      targetCondition: isPsaPrize(card) ? `PSA${card.psa || 10}` : "B",
+      query
+    };
   }
 
   function ensureRoot() {
@@ -152,18 +198,28 @@
         return;
       }
 
+      const lastPrizeInput = event.target.closest("[data-tcg-ev-last-prize-value]");
+      if (lastPrizeInput) {
+        state.lastPrizeValue = lastPrizeInput.value;
+        updateLastPrizeMetrics();
+        return;
+      }
+
       const input = event.target.closest("[data-tcg-ev-manual-price]");
       if (!input) return;
 
-      const cardId = Number(input.dataset.tcgEvManualPrice);
+      const cardId = input.dataset.tcgEvManualPrice;
+      const card = findCardByKey(cardId);
+      const key = card ? cardKey(card) : String(cardId || "");
       const price = Number(input.value);
       if (Number.isFinite(price) && price > 0) {
-        state.manualPrices.set(cardId, price);
+        state.manualPrices.set(key, price);
       } else {
-        state.manualPrices.delete(cardId);
+        state.manualPrices.delete(key);
       }
       renderSummaryOnly();
-      updateCardRowPresentation(cardId);
+      updateCardRowPresentation(key);
+      updateLastPrizeMetrics();
     });
 
     root.addEventListener("change", (event) => {
@@ -197,6 +253,7 @@
         <div class="tcg-ev-body">
           ${renderSummary(summary)}
           ${renderBulkControls()}
+          ${renderLastPrizePanel(summary)}
           ${renderCards(summary)}
           <footer class="tcg-ev-footer">
             <span>${escapeHtml(state.statusText)}</span>
@@ -225,6 +282,39 @@
         </div>
         ${renderBulkRankRow(3, r3Count)}
         ${renderBulkRankRow(4, r4Count)}
+      </section>
+    `;
+  }
+
+  function renderLastPrizePanel(summary) {
+    if (!state.domSignals.lastPrize) return "";
+    const metrics = computeLastPrizeMetrics(summary);
+
+    return `
+      <section class="tcg-ev-last-prize" data-tcg-ev-last-prize>
+        <div class="tcg-ev-last-prize-head">
+          <strong>最後一抽特別獎</strong>
+          <span>${escapeHtml(state.domSignals.lastPrize.text || "偵測到 rank9 最後賞。")}</span>
+        </div>
+        <p>這類獎項不自動併入上方單抽 EV；它更適合用「包剩餘抽數」或「平均攤提」方式參考。</p>
+        <div class="tcg-ev-last-prize-grid">
+          <label>
+            最後賞估值
+            <input data-tcg-ev-last-prize-value type="number" min="0" step="1" value="${escapeHtml(state.lastPrizeValue)}" placeholder="¥">
+          </label>
+          <div>
+            <span>平均攤提</span>
+            <strong data-tcg-ev-last-amortized>${formatYen(metrics.amortized)}</strong>
+          </div>
+          <div>
+            <span>包剩餘估值</span>
+            <strong data-tcg-ev-last-bundle-value>${formatYen(metrics.bundleValue)}</strong>
+          </div>
+          <div>
+            <span>包剩餘 ROI</span>
+            <strong data-tcg-ev-last-bundle-roi>${formatPercent(metrics.bundleRoi)}</strong>
+          </div>
+        </div>
       </section>
     `;
   }
@@ -307,9 +397,10 @@
   }
 
   function renderCardRow(card, totalQuantity) {
+    const key = cardKey(card);
     const qty = Number(card.number || 0);
-    const data = state.prices.get(card.id) || { status: "pending" };
-    const manualPrice = state.manualPrices.get(card.id);
+    const data = state.prices.get(key) || { status: "pending" };
+    const manualPrice = state.manualPrices.get(key);
     const price = manualPrice || (Number.isFinite(data.price) ? data.price : null);
     const contribution = price && totalQuantity ? (price * qty) / totalQuantity : null;
     const rowClass = getCardRowClass(card, data, manualPrice);
@@ -319,14 +410,14 @@
     const originalPrice = manualPrice && Number.isFinite(data.price) ? data.price : null;
 
     return `
-      <article class="tcg-ev-card${rowClass ? ` ${rowClass}` : ""}" data-tcg-ev-card-id="${card.id}">
+      <article class="tcg-ev-card${rowClass ? ` ${rowClass}` : ""}" data-tcg-ev-card-id="${escapeHtml(key)}">
         <div class="tcg-ev-rank">R${escapeHtml(card.rank || "-")}</div>
-        <img src="${escapeHtml(imageUrl(card.image_url))}" alt="" loading="lazy">
+        ${renderCardImage(card)}
         <div class="tcg-ev-card-main">
           <div class="tcg-ev-card-name" title="${escapeHtml(card.name || "")}">${escapeHtml(card.name || "-")}</div>
           <div class="tcg-ev-card-meta">
             <span>數量 ${qty}</span>
-            <span>${escapeHtml(isPsaPrize(card) ? `PSA${card.psa || 10}` : "B品")}</span>
+            <span>${escapeHtml(conditionLabel(card, data))}</span>
             <span data-tcg-ev-source>${escapeHtml(sourceLabel)}</span>
             ${data.soldAt ? `<span>${escapeHtml(formatDate(data.soldAt))}</span>` : ""}
           </div>
@@ -338,7 +429,7 @@
           <span data-tcg-ev-original-price${originalPrice ? "" : " hidden"}>${originalPrice ? `SNKRDUNK ${formatYen(originalPrice)}` : ""}</span>
           <label>
             手動
-            <input data-tcg-ev-manual-price="${card.id}" type="number" min="0" step="1" value="${manualPrice || ""}" placeholder="¥">
+            <input data-tcg-ev-manual-price="${escapeHtml(key)}" type="number" min="0" step="1" value="${manualPrice || ""}" placeholder="¥">
           </label>
           <div class="tcg-ev-card-links">
             ${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noreferrer">SNKRDUNK</a>` : ""}
@@ -349,8 +440,22 @@
     `;
   }
 
+  function renderCardImage(card) {
+    if (card?.image_url) {
+      return `<img src="${escapeHtml(imageUrl(card.image_url))}" alt="" loading="lazy">`;
+    }
+
+    return `<div class="tcg-ev-card-placeholder" aria-hidden="true">其他</div>`;
+  }
+
   function renderCardProblem(data, manualPrice = null) {
     if (manualPrice) return "";
+    if (data.status === "manual_required") {
+      const message = data.reason === "missing_consolation_point"
+        ? "偵測到「其他可用」安慰獎，但 API 沒有 point 欄位；請手動輸入固定值。"
+        : "此 R4 區塊顯示「其他可用」，不自動估價；請手動輸入固定值。";
+      return `<p class="tcg-ev-warning">${escapeHtml(message)}</p>`;
+    }
     if (data.status === "not_found") {
       return `<p class="tcg-ev-warning">沒有找到足夠相似的 SNKRDUNK 商品，可手動補價。</p>`;
     }
@@ -367,13 +472,15 @@
   }
 
   function updateCardRowPresentation(cardId) {
-    const card = state.cards.find((item) => Number(item.id) === Number(cardId));
-    const article = root.querySelector(`[data-tcg-ev-card-id="${cardId}"]`);
+    const key = String(cardId || "");
+    const card = findCardByKey(key);
+    const article = [...root.querySelectorAll("[data-tcg-ev-card-id]")]
+      .find((node) => node.dataset.tcgEvCardId === key);
     if (!card || !article) return;
 
     const totalQuantity = computeSummary().totalQuantity;
-    const data = state.prices.get(card.id) || { status: "pending" };
-    const manualPrice = state.manualPrices.get(card.id);
+    const data = state.prices.get(cardKey(card)) || { status: "pending" };
+    const manualPrice = state.manualPrices.get(cardKey(card));
     const price = manualPrice || (Number.isFinite(data.price) ? data.price : null);
     const contribution = price && totalQuantity ? (price * Number(card.number || 0)) / totalQuantity : null;
     const originalPrice = manualPrice && Number.isFinite(data.price) ? data.price : null;
@@ -402,7 +509,7 @@
 
   function getCardRowClass(card, data, manualPrice) {
     return [
-      !manualPrice && (data.status === "error" || data.status === "not_found" || data.status === "no_sales") ? "has-warning" : "",
+      !manualPrice && ["error", "not_found", "no_sales", "manual_required"].includes(data.status) ? "has-warning" : "",
       isUnpricedCard(card, data, manualPrice) ? "is-unpriced" : ""
     ]
       .filter(Boolean)
@@ -418,8 +525,8 @@
 
     for (const card of state.cards) {
       const qty = Number(card.number || 0);
-      const data = state.prices.get(card.id);
-      const manualPrice = state.manualPrices.get(card.id);
+      const data = state.prices.get(cardKey(card));
+      const manualPrice = state.manualPrices.get(cardKey(card));
       const price = manualPrice || (Number.isFinite(data?.price) ? data.price : null);
       if (!price || !qty) continue;
       totalValue += price * qty;
@@ -438,7 +545,7 @@
       !state.packageData ||
       !state.cards.length ||
       state.cards.some((card) => {
-        const price = state.prices.get(card.id);
+        const price = state.prices.get(cardKey(card));
         return !price || price.status === "pending" || price.status === "loading";
       });
     const coverageComplete = totalQuantity > 0 && pricedQuantity >= totalQuantity;
@@ -459,8 +566,50 @@
   function isUnpricedCard(card, data, manualPrice) {
     if (manualPrice || Number.isFinite(data?.price)) return false;
     if (!state.packageData || state.loading) return false;
-    if (!state.prices.has(card.id)) return false;
+    if (!state.prices.has(cardKey(card))) return false;
     return data.status !== "pending" && data.status !== "loading";
+  }
+
+  function shouldSkipAutoPricing(card) {
+    return card?.is_consolation || (state.domSignals.rank4OtherAvailable && Number(card?.rank) === 4);
+  }
+
+  function computeLastPrizeMetrics(summary = computeSummary()) {
+    const value = Number(state.lastPrizeValue);
+    const lastPrizeValue = Number.isFinite(value) && value > 0 ? value : 0;
+    const remaining = Number(state.packageData?.stock || state.packageData?.stock_quantity || summary.totalQuantity || 0);
+    const cost = Number(state.packageData?.price || 0);
+    const bundleCost = remaining * cost;
+    const bundleValue = summary.ev * remaining + lastPrizeValue;
+
+    if (!lastPrizeValue) {
+      return {
+        amortized: NaN,
+        bundleValue: NaN,
+        bundleRoi: NaN
+      };
+    }
+
+    return {
+      amortized: remaining && lastPrizeValue ? lastPrizeValue / remaining : NaN,
+      bundleValue: bundleValue || NaN,
+      bundleRoi: bundleCost ? (bundleValue / bundleCost) * 100 : NaN
+    };
+  }
+
+  function updateLastPrizeMetrics() {
+    const panel = root.querySelector("[data-tcg-ev-last-prize]");
+    if (!panel) return;
+
+    const metrics = computeLastPrizeMetrics();
+    setText(panel, "[data-tcg-ev-last-amortized]", formatYen(metrics.amortized));
+    setText(panel, "[data-tcg-ev-last-bundle-value]", formatYen(metrics.bundleValue));
+    setText(panel, "[data-tcg-ev-last-bundle-roi]", formatPercent(metrics.bundleRoi));
+  }
+
+  function setText(scope, selector, value) {
+    const node = scope.querySelector(selector);
+    if (node) node.textContent = value;
   }
 
   function applyRankManualPrice(rank) {
@@ -476,7 +625,7 @@
     let changed = 0;
     for (const card of state.cards) {
       if (!isBulkTargetCard(card, rank)) continue;
-      state.manualPrices.set(card.id, price);
+      state.manualPrices.set(cardKey(card), price);
       changed += 1;
     }
 
@@ -491,7 +640,7 @@
     let changed = 0;
     for (const card of state.cards) {
       if (!isBulkTargetCard(card, rank)) continue;
-      if (state.manualPrices.delete(card.id)) changed += 1;
+      if (state.manualPrices.delete(cardKey(card))) changed += 1;
     }
 
     const scope = state.bulkOnlyNonPsa ? "非 PSA " : "";
@@ -514,6 +663,46 @@
       String(card?.sourceElementClass || "").includes("gacha-info-card-psa") ||
       card?.is_psa_enabled === 1
     );
+  }
+
+  function appendConsolationPrizeCard(cards, packageData) {
+    if ((cards || []).some((card) => card?.is_consolation)) return cards;
+
+    const summary = packageData?.consolation_prize;
+    const placeholderCount = Number(summary?.placeholderCount || 0);
+    const missingQuantity = Number(summary?.quantity || 0) || computeMissingPrizeQuantity(cards, packageData);
+    const shouldAppend =
+      missingQuantity > 0 &&
+      (state.domSignals.rank4OtherAvailable || placeholderCount > 0 || summary?.source === "missing_rank4" || summary?.source === "api_point");
+
+    if (!shouldAppend) return cards;
+
+    const point = Number(summary?.point);
+    return [
+      ...cards,
+      {
+        id: `consolation-${packageData?.id || state.routeKey}`,
+        package_id: packageData?.id || null,
+        rank: Number(summary?.rank || 4),
+        name: "其他可用 / 安慰獎",
+        image_url: null,
+        number: missingQuantity,
+        point: Number.isFinite(point) && point > 0 ? point : null,
+        is_psa_enabled: 2,
+        psa: null,
+        is_consolation: true,
+        placeholderCount,
+        sourceElementClass: "gacha-info-detail-rank4 other-available"
+      }
+    ];
+  }
+
+  function computeMissingPrizeQuantity(cards, packageData) {
+    const listedQuantity = (cards || [])
+      .filter((card) => !card?.is_consolation && Number(card?.rank) !== 9)
+      .reduce((sum, card) => sum + Number(card.number || 0), 0);
+    const packageQuantity = Number(packageData?.number || 0);
+    return packageQuantity > listedQuantity ? packageQuantity - listedQuantity : 0;
   }
 
   function mergeDomPsaHints(cards) {
@@ -541,11 +730,28 @@
     });
   }
 
+  function collectDomSignals(packageCards = []) {
+    const detailNodes = getGachaDetailNodes();
+    const rank4OtherAvailable = detailNodes.some((node) => {
+      if (rankFromClassName(node.className) !== 4) return false;
+      return /其他可用|other\s+available/i.test(normalizeText(node.textContent));
+    });
+    const lastPrizeNode = detailNodes.find((node) => rankFromClassName(node.className) === 9);
+    const lastPrizeCard = packageCards.find((card) => Number(card.rank) === 9);
+
+    return {
+      rank4OtherAvailable,
+      lastPrize: lastPrizeNode || lastPrizeCard
+        ? {
+            text: normalizeText(lastPrizeNode?.textContent || lastPrizeCard?.name || "偵測到 rank9 最後賞。").slice(0, 90)
+          }
+        : null
+    };
+  }
+
   function collectDomCardHints() {
-    const scope = document.querySelector(".gacha-info") || document;
-    const detailNodes = [
-      ...scope.querySelectorAll(".gacha-info-detail[class*='rank'], .gacha-info.detail[class*='rank']")
-    ];
+    const scope = getGachaInfoScope();
+    const detailNodes = getGachaDetailNodes(scope);
     const nodes = detailNodes.length
       ? detailNodes
       : [...scope.querySelectorAll(".gacha-info-card, [class*='image-rank']")];
@@ -576,8 +782,24 @@
   }
 
   function rankFromClassName(className) {
-    const match = String(className || "").match(/\brank\s*([1-4])\b|rank([1-4])\b/i);
+    const match = String(className || "").match(/\brank\s*([1-9])\b|rank([1-9])\b/i);
     return match ? Number(match[1] || match[2]) : null;
+  }
+
+  function getGachaInfoScope() {
+    return document.querySelector(".gacha-info") || document;
+  }
+
+  function getGachaDetailNodes(scope = getGachaInfoScope()) {
+    return [
+      ...scope.querySelectorAll(
+        ".gacha-info-detail[class*='rank'], .gacha-info.detail[class*='rank'], [class*='gacha-info-detail-rank'], [class*='gacha-info-detai'][class*='rank']"
+      )
+    ];
+  }
+
+  function normalizeText(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
   }
 
   async function runWithConcurrency(items, limit, worker) {
@@ -636,6 +858,18 @@
   }
 
   function fallbackSearchQuery(card) {
+    if (card?.is_consolation) {
+      const point = Number(card.point);
+      return [
+        state.packageData?.name,
+        "其他可用",
+        "安慰獎",
+        Number.isFinite(point) && point > 0 ? `${point}pt` : ""
+      ]
+        .filter(Boolean)
+        .join(" ");
+    }
+
     const name = String(card?.name || "")
       .replace(/〔[^〕]*PSA\s*\d+[^〕]*〕/gi, "")
       .replace(/\[[^\]]*\]/g, "")
@@ -645,9 +879,29 @@
     return `${name} ${isPsaPrize(card) ? `PSA${card.psa || 10}` : "B"}`.trim();
   }
 
+  function conditionLabel(card, data) {
+    if (card?.is_consolation) {
+      const point = Number(data?.source === "api_point" ? data.price : card.point);
+      return Number.isFinite(point) && point > 0 ? `安慰獎 ${point}pt` : "安慰獎";
+    }
+    return isPsaPrize(card) ? `PSA${card.psa || 10}` : "B品";
+  }
+
+  function findCardByKey(key) {
+    const normalized = String(key || "");
+    return state.cards.find((card) => cardKey(card) === normalized);
+  }
+
+  function cardKey(cardOrId) {
+    if (cardOrId && typeof cardOrId === "object") return String(cardOrId.id);
+    return String(cardOrId || "");
+  }
+
   function sourceText(data, manualPrice) {
     if (manualPrice) return "手動價格";
+    if (data.status === "manual_required") return "需手動";
     if (data.status === "loading") return "查詢中";
+    if (data.source === "api_point") return Number.isFinite(data.price) ? `API ${data.price}pt` : "API pt";
     if (data.cacheHit && data.source === "condition_chart") return `快取${data.targetCondition || ""}線圖`;
     if (data.source === "condition_chart") return `${data.targetCondition || ""}線圖`;
     if (data.status === "no_sales") return `${data.targetCondition || ""}無線圖`;
@@ -657,6 +911,7 @@
 
   function pricePlaceholder(data) {
     if (data.status === "loading") return "查詢中";
+    if (data.status === "manual_required") return "請輸入";
     if (data.status === "pending") return "等待";
     return "-";
   }
@@ -675,6 +930,11 @@
   function formatPoint(value) {
     if (!Number.isFinite(value)) return "-";
     return `${Math.round(value).toLocaleString("ja-JP")} pt`;
+  }
+
+  function formatPercent(value) {
+    if (!Number.isFinite(value)) return "-";
+    return `${value.toFixed(1)}%`;
   }
 
   function formatDate(value) {

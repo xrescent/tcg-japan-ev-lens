@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TCG Japan EV Lens",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shows expected value for TCG Japan gacha pools with SNKRDUNK sales data.",
   "permissions": ["storage"],
   "host_permissions": [
