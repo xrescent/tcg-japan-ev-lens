@@ -409,6 +409,108 @@
   text-align: center;
 }
 
+.tcg-ev-rank-group {
+  border: 1px solid #d9e3e1;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.tcg-ev-rank-group.has-unpriced {
+  border-color: #fda4af;
+}
+
+.tcg-ev-rank-group-head {
+  align-items: center;
+  background: #f8faf9;
+  border: 0;
+  border-bottom: 1px solid #d9e3e1;
+  color: #18212b;
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  min-height: 48px;
+  padding: 7px 8px;
+  text-align: left;
+  width: 100%;
+}
+
+.tcg-ev-rank-group-head > .tcg-ev-rank {
+  grid-row: 1 / span 2;
+}
+
+.tcg-ev-rank-group.is-collapsed .tcg-ev-rank-group-head {
+  border-bottom: 0;
+}
+
+.tcg-ev-rank-group.has-unpriced .tcg-ev-rank-group-head {
+  background: #fff1f2;
+}
+
+.tcg-ev-rank-group-title {
+  font-size: 12px;
+  font-weight: 950;
+  line-height: 1.25;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tcg-ev-rank-group-metrics {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  grid-column: 2 / -1;
+}
+
+.tcg-ev-rank-group-meta,
+.tcg-ev-rank-group-ev,
+.tcg-ev-rank-group-status,
+.tcg-ev-rank-group-toggle {
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.2;
+  padding: 4px 6px;
+  white-space: nowrap;
+}
+
+.tcg-ev-rank-group-meta {
+  background: #eef5f3;
+  color: #465761;
+}
+
+.tcg-ev-rank-group-ev {
+  background: #ecfeff;
+  color: #155e75;
+}
+
+.tcg-ev-rank-group-status {
+  background: #ffe4e6;
+  color: #9f1239;
+}
+
+.tcg-ev-rank-group-status.is-complete {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.tcg-ev-rank-group-toggle {
+  background: #18212b;
+  color: #fff;
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.tcg-ev-rank-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+
 .tcg-ev-card {
   align-items: center;
   background: #fff;
@@ -438,6 +540,7 @@
 .tcg-ev-rank {
   align-items: center;
   background: #18212b;
+  border: 1px solid rgba(24, 33, 43, .2);
   border-radius: 6px;
   color: #fff;
   display: flex;
@@ -446,6 +549,30 @@
   height: 34px;
   justify-content: center;
   width: 34px;
+}
+
+.tcg-ev-rank.is-rank-1 {
+  background: linear-gradient(135deg, #fff3a6 0%, #f6c344 48%, #a16207 100%);
+  border-color: #d6a019;
+  color: #332200;
+}
+
+.tcg-ev-rank.is-rank-2 {
+  background: linear-gradient(135deg, #f8fafc 0%, #cbd5e1 52%, #64748b 100%);
+  border-color: #aebacc;
+  color: #1f2937;
+}
+
+.tcg-ev-rank.is-rank-3 {
+  background: linear-gradient(135deg, #f6c790 0%, #b86b33 52%, #6f3517 100%);
+  border-color: #9a5a2c;
+  color: #fff7ed;
+}
+
+.tcg-ev-rank.is-rank-4 {
+  background: #18212b;
+  border-color: rgba(24, 33, 43, .2);
+  color: #fff;
 }
 
 .tcg-ev-card img {
@@ -645,6 +772,15 @@
 
   .tcg-ev-last-prize-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tcg-ev-rank-group-head {
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+  }
+
+  .tcg-ev-rank-group-toggle {
+    grid-column: 3;
+    grid-row: 1 / span 2;
   }
 
   .tcg-ev-card {

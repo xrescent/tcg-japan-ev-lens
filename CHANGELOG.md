@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.2
+
+### Added
+
+- Added rank-colored badges for prize tiers: R1 gold, R2 silver, R3 bronze, and R4 iron/black.
+- Added collapsible Rank groups so users can scan and fold R1-R4 prize sections.
+- Added per-Rank group summaries showing item count, draw quantity, EV contribution, and contribution share of total EV.
+- Added `需補 N` indicators on Rank groups when prizes still need manual pricing.
+
+### Changed
+
+- Rank groups with missing prices now move to the top of the prize list.
+- Within each Rank group, prizes that need manual input now appear before already-priced prizes.
+- Manual price typing now updates the EV summary, row display, and Rank contribution metrics immediately without reordering the list mid-typing.
+- Rank group ordering refreshes after manual input is committed, keeping long lists easier to clean up.
+
 ## 0.1.1
 
 ### Added

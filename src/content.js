@@ -17,6 +17,7 @@
       lastPrize: null
     },
     lastPrizeValue: "",
+    collapsedRanks: new Set(),
     loading: false,
     collapsed: false,
     statusText: "待機中"
@@ -60,6 +61,7 @@
     state.bulkOnlyNonPsa = false;
     state.domSignals = { rank4OtherAvailable: false, lastPrize: null };
     state.lastPrizeValue = "";
+    state.collapsedRanks = new Set();
     loadPackage(page, force);
   }
 
@@ -189,6 +191,10 @@
       if (action === "clear-rank-price") {
         clearRankManualPrice(Number(event.target.closest("[data-tcg-ev-rank]")?.dataset.tcgEvRank));
       }
+
+      if (action === "toggle-rank") {
+        toggleRankGroup(event.target.closest("[data-tcg-ev-rank-group]")?.dataset.tcgEvRankGroup);
+      }
     });
 
     root.addEventListener("input", (event) => {
@@ -219,10 +225,17 @@
       }
       renderSummaryOnly();
       updateCardRowPresentation(key);
+      if (card) updateRankGroupPresentation(card.rank);
       updateLastPrizeMetrics();
     });
 
     root.addEventListener("change", (event) => {
+      const manualInput = event.target.closest("[data-tcg-ev-manual-price]");
+      if (manualInput) {
+        render();
+        return;
+      }
+
       const checkbox = event.target.closest("[data-tcg-ev-only-non-psa]");
       if (!checkbox) return;
       state.bulkOnlyNonPsa = checkbox.checked;
@@ -389,9 +402,89 @@
       return `<section class="tcg-ev-card-list" data-tcg-ev-cards><p class="tcg-ev-empty">還沒有讀到獎項資料。</p></section>`;
     }
 
+    const groups = buildRankGroups(summary);
+
     return `
       <section class="tcg-ev-card-list" data-tcg-ev-cards>
-        ${state.cards.map((card) => renderCardRow(card, summary.totalQuantity)).join("")}
+        ${groups.map((group) => renderRankGroup(group, summary.totalQuantity)).join("")}
+      </section>
+    `;
+  }
+
+  function buildRankGroups(summary = computeSummary()) {
+    const groups = new Map();
+    const totalQuantity = Number(summary.totalQuantity || 0);
+
+    state.cards.forEach((card, index) => {
+      const key = rankGroupKey(card.rank);
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          rank: Number(card.rank),
+          cards: [],
+          quantity: 0,
+          unpricedCount: 0,
+          evContribution: 0,
+          evShare: NaN
+        });
+      }
+
+      const group = groups.get(key);
+      const needsInput = cardNeedsManualInput(card);
+      const contribution = cardEvContribution(card, totalQuantity);
+      group.cards.push({ card, index, needsInput });
+      group.quantity += Number(card.number || 0);
+      if (needsInput) group.unpricedCount += 1;
+      if (Number.isFinite(contribution)) group.evContribution += contribution;
+    });
+
+    return [...groups.values()]
+      .map((group) => ({
+        ...group,
+        evShare: Number.isFinite(summary.ev) && summary.ev > 0 ? (group.evContribution / summary.ev) * 100 : NaN,
+        cards: group.cards.sort((a, b) => {
+          if (a.needsInput !== b.needsInput) return a.needsInput ? -1 : 1;
+          return a.index - b.index;
+        })
+      }))
+      .sort((a, b) => {
+        const inputDiff = Number(b.unpricedCount > 0) - Number(a.unpricedCount > 0);
+        if (inputDiff !== 0) return inputDiff;
+        const rankDiff = rankSortValue(a.rank) - rankSortValue(b.rank);
+        if (rankDiff !== 0) return rankDiff;
+        return String(a.key).localeCompare(String(b.key));
+      });
+  }
+
+  function renderRankGroup(group, totalQuantity) {
+    const collapsed = state.collapsedRanks.has(group.key);
+    const rankLabel = Number.isFinite(group.rank) ? `R${group.rank}` : "其他";
+    const rankClass = rankBadgeClass(group.rank);
+    const unpricedLabel = group.unpricedCount
+      ? `<span class="tcg-ev-rank-group-status" data-tcg-ev-rank-group-status>需補 ${group.unpricedCount}</span>`
+      : `<span class="tcg-ev-rank-group-status is-complete" data-tcg-ev-rank-group-status>已覆蓋</span>`;
+
+    return `
+      <section class="tcg-ev-rank-group${collapsed ? " is-collapsed" : ""}${group.unpricedCount ? " has-unpriced" : ""}" data-tcg-ev-rank-group-section="${escapeHtml(group.key)}">
+        <button
+          type="button"
+          class="tcg-ev-rank-group-head"
+          data-tcg-ev-action="toggle-rank"
+          data-tcg-ev-rank-group="${escapeHtml(group.key)}"
+          aria-expanded="${collapsed ? "false" : "true"}"
+        >
+          <span class="tcg-ev-rank${rankClass ? ` ${rankClass}` : ""}">${escapeHtml(rankLabel)}</span>
+          <span class="tcg-ev-rank-group-title">${escapeHtml(rankLabel)} 獎項</span>
+          <span class="tcg-ev-rank-group-toggle">${collapsed ? "展開" : "收合"}</span>
+          <span class="tcg-ev-rank-group-metrics">
+            <span class="tcg-ev-rank-group-meta" data-tcg-ev-rank-group-meta>${group.cards.length} 項 / ${group.quantity} 抽</span>
+            <span class="tcg-ev-rank-group-ev" data-tcg-ev-rank-group-ev>${escapeHtml(rankContributionText(group))}</span>
+            ${unpricedLabel}
+          </span>
+        </button>
+        <div class="tcg-ev-rank-group-body"${collapsed ? " hidden" : ""}>
+          ${group.cards.map((item) => renderCardRow(item.card, totalQuantity)).join("")}
+        </div>
       </section>
     `;
   }
@@ -408,10 +501,11 @@
     const link = data.match?.link || data.searchUrl || "";
     const googleLink = googleSearchUrl(data.query || fallbackSearchQuery(card));
     const originalPrice = manualPrice && Number.isFinite(data.price) ? data.price : null;
+    const rankClass = rankBadgeClass(card.rank);
 
     return `
       <article class="tcg-ev-card${rowClass ? ` ${rowClass}` : ""}" data-tcg-ev-card-id="${escapeHtml(key)}">
-        <div class="tcg-ev-rank">R${escapeHtml(card.rank || "-")}</div>
+        <div class="tcg-ev-rank${rankClass ? ` ${rankClass}` : ""}">R${escapeHtml(card.rank || "-")}</div>
         ${renderCardImage(card)}
         <div class="tcg-ev-card-main">
           <div class="tcg-ev-card-name" title="${escapeHtml(card.name || "")}">${escapeHtml(card.name || "-")}</div>
@@ -507,6 +601,24 @@
     if (warningNode) warningNode.innerHTML = renderCardProblem(data, manualPrice);
   }
 
+  function updateRankGroupPresentation(rank) {
+    const key = rankGroupKey(rank);
+    const group = buildRankGroups(computeSummary()).find((item) => item.key === key);
+    const section = [...root.querySelectorAll("[data-tcg-ev-rank-group-section]")]
+      .find((node) => node.dataset.tcgEvRankGroupSection === key);
+    if (!group || !section) return;
+
+    section.classList.toggle("has-unpriced", group.unpricedCount > 0);
+    setText(section, "[data-tcg-ev-rank-group-meta]", `${group.cards.length} 項 / ${group.quantity} 抽`);
+    setText(section, "[data-tcg-ev-rank-group-ev]", rankContributionText(group));
+
+    const statusNode = section.querySelector("[data-tcg-ev-rank-group-status]");
+    if (statusNode) {
+      statusNode.textContent = group.unpricedCount ? `需補 ${group.unpricedCount}` : "已覆蓋";
+      statusNode.classList.toggle("is-complete", group.unpricedCount === 0);
+    }
+  }
+
   function getCardRowClass(card, data, manualPrice) {
     return [
       !manualPrice && ["error", "not_found", "no_sales", "manual_required"].includes(data.status) ? "has-warning" : "",
@@ -570,6 +682,25 @@
     return data.status !== "pending" && data.status !== "loading";
   }
 
+  function cardNeedsManualInput(card) {
+    const data = state.prices.get(cardKey(card)) || { status: "pending" };
+    const manualPrice = state.manualPrices.get(cardKey(card));
+    return isUnpricedCard(card, data, manualPrice);
+  }
+
+  function cardEvContribution(card, totalQuantity) {
+    const qty = Number(card.number || 0);
+    const price = resolvedCardPrice(card);
+    if (!price || !qty || !totalQuantity) return null;
+    return (price * qty) / totalQuantity;
+  }
+
+  function resolvedCardPrice(card) {
+    const data = state.prices.get(cardKey(card));
+    const manualPrice = state.manualPrices.get(cardKey(card));
+    return manualPrice || (Number.isFinite(data?.price) ? data.price : null);
+  }
+
   function shouldSkipAutoPricing(card) {
     return card?.is_consolation || (state.domSignals.rank4OtherAvailable && Number(card?.rank) === 4);
   }
@@ -610,6 +741,18 @@
   function setText(scope, selector, value) {
     const node = scope.querySelector(selector);
     if (node) node.textContent = value;
+  }
+
+  function toggleRankGroup(rankKey) {
+    if (!rankKey) return;
+
+    if (state.collapsedRanks.has(rankKey)) {
+      state.collapsedRanks.delete(rankKey);
+    } else {
+      state.collapsedRanks.add(rankKey);
+    }
+
+    render();
   }
 
   function applyRankManualPrice(rank) {
@@ -895,6 +1038,26 @@
   function cardKey(cardOrId) {
     if (cardOrId && typeof cardOrId === "object") return String(cardOrId.id);
     return String(cardOrId || "");
+  }
+
+  function rankBadgeClass(rank) {
+    const value = Number(rank);
+    if (value >= 1 && value <= 4) return `is-rank-${value}`;
+    return "";
+  }
+
+  function rankGroupKey(rank) {
+    const value = Number(rank);
+    return Number.isFinite(value) ? String(value) : "unknown";
+  }
+
+  function rankSortValue(rank) {
+    const value = Number(rank);
+    return Number.isFinite(value) ? value : 999;
+  }
+
+  function rankContributionText(group) {
+    return `貢獻 ${formatYen(group.evContribution)} / 佔 ${formatPercent(group.evShare)}`;
   }
 
   function sourceText(data, manualPrice) {
