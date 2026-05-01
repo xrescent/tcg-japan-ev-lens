@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.3
+
+### Added
+
+- Added a remaining-draw analysis panel when the TCG Japan API reports current stock below the published prize quantity.
+- Added neutral, conservative, and optimistic remaining-draw EV estimates.
+- Added R1-R4 survival probability estimates based on the remaining draw count.
+
+### Notes
+
+- Remaining-draw EV is probabilistic because TCG Japan does not publish which prizes have already been pulled.
+- Conservative EV assumes already-drawn prizes came from the highest-value prizes first.
+- Optimistic EV assumes already-drawn prizes came from the lowest-value prizes first.
+- This version is intentionally separated from `0.1.2` because the extra analysis may be more complex than some users need.
+
 ## 0.1.2
 
 ### Added

@@ -224,6 +224,7 @@
         state.manualPrices.delete(key);
       }
       renderSummaryOnly();
+      renderRemainingDrawOnly();
       updateCardRowPresentation(key);
       if (card) updateRankGroupPresentation(card.rank);
       updateLastPrizeMetrics();
@@ -265,6 +266,7 @@
         </header>
         <div class="tcg-ev-body">
           ${renderSummary(summary)}
+          ${renderRemainingDrawPanel(summary)}
           ${renderBulkControls()}
           ${renderLastPrizePanel(summary)}
           ${renderCards(summary)}
@@ -393,6 +395,63 @@
           </div>
         </div>
         ${summary.stockNote ? `<p class="tcg-ev-note">${escapeHtml(summary.stockNote)}</p>` : ""}
+      </section>
+    `;
+  }
+
+  function renderRemainingDrawOnly() {
+    const panel = root.querySelector("[data-tcg-ev-remaining]");
+    if (!panel) return;
+
+    const nextHtml = renderRemainingDrawPanel(computeSummary());
+    if (nextHtml) {
+      panel.outerHTML = nextHtml;
+    } else {
+      panel.remove();
+    }
+  }
+
+  function renderRemainingDrawPanel(summary) {
+    const analysis = computeRemainingDrawAnalysis(summary);
+    if (!analysis) return "";
+
+    const coverageClass = analysis.coverageComplete ? "is-complete" : "is-incomplete";
+    const survivalRows = analysis.survival
+      .map((item) => {
+        const rankClass = rankBadgeClass(item.rank);
+        return `
+          <div>
+            <span class="tcg-ev-rank${rankClass ? ` ${rankClass}` : ""}">R${escapeHtml(item.rank)}</span>
+            <strong>${formatPercent(item.probability)}</strong>
+          </div>
+        `;
+      })
+      .join("");
+
+    return `
+      <section class="tcg-ev-remaining ${coverageClass}" data-tcg-ev-remaining>
+        <div class="tcg-ev-remaining-head">
+          <div>
+            <strong>剩餘抽分析</strong>
+            <span>${analysis.remaining} / ${analysis.total} 抽剩餘，已抽 ${analysis.drawn} 抽</span>
+          </div>
+          <span>${analysis.coverageComplete ? "估價完整" : `缺 ${analysis.unpricedQuantity} 抽估價`}</span>
+        </div>
+        <div class="tcg-ev-remaining-grid">
+          <div>
+            <span>中性 EV</span>
+            <strong>${formatYen(analysis.neutralEv)}</strong>
+          </div>
+          <div>
+            <span>保守 EV</span>
+            <strong>${formatYen(analysis.conservativeEv)}</strong>
+          </div>
+          <div>
+            <span>樂觀 EV</span>
+            <strong>${formatYen(analysis.optimisticEv)}</strong>
+          </div>
+        </div>
+        ${survivalRows ? `<div class="tcg-ev-survival">${survivalRows}</div>` : ""}
       </section>
     `;
   }
@@ -686,6 +745,93 @@
     const data = state.prices.get(cardKey(card)) || { status: "pending" };
     const manualPrice = state.manualPrices.get(cardKey(card));
     return isUnpricedCard(card, data, manualPrice);
+  }
+
+  function computeRemainingDrawAnalysis(summary = computeSummary()) {
+    const total = Number(summary.totalQuantity || state.packageData?.number || 0);
+    const remaining = Number(state.packageData?.stock || state.packageData?.stock_quantity || 0);
+    if (!total || !remaining || remaining >= total) return null;
+
+    const drawn = total - remaining;
+    const valuedLots = state.cards
+      .map((card) => ({
+        rank: Number(card.rank),
+        quantity: Number(card.number || 0),
+        price: resolvedCardPrice(card)
+      }))
+      .filter((lot) => lot.quantity > 0);
+    const pricedLots = valuedLots.filter((lot) => Number.isFinite(lot.price) && lot.price > 0);
+    const unpricedQuantity = valuedLots
+      .filter((lot) => !Number.isFinite(lot.price) || lot.price <= 0)
+      .reduce((sum, lot) => sum + lot.quantity, 0);
+
+    return {
+      total,
+      remaining,
+      drawn,
+      neutralEv: summary.ev,
+      conservativeEv: computeScenarioRemainingEv(pricedLots, drawn, remaining, "highest"),
+      optimisticEv: computeScenarioRemainingEv(pricedLots, drawn, remaining, "lowest"),
+      coverageComplete: unpricedQuantity === 0 && summary.coverageComplete,
+      unpricedQuantity,
+      survival: computeRankSurvivalProbabilities(valuedLots, total, drawn)
+    };
+  }
+
+  function computeScenarioRemainingEv(lots, drawn, remaining, removeMode) {
+    if (!remaining) return NaN;
+
+    const ordered = [...lots].sort((a, b) => {
+      const priceDiff = removeMode === "highest" ? b.price - a.price : a.price - b.price;
+      if (priceDiff !== 0) return priceDiff;
+      return Number(a.rank || 999) - Number(b.rank || 999);
+    });
+    let drawsToRemove = Math.max(0, drawn);
+    let remainingValue = 0;
+
+    for (const lot of ordered) {
+      const removed = Math.min(lot.quantity, drawsToRemove);
+      const kept = lot.quantity - removed;
+      drawsToRemove -= removed;
+      remainingValue += kept * lot.price;
+    }
+
+    return remainingValue / remaining;
+  }
+
+  function computeRankSurvivalProbabilities(lots, total, drawn) {
+    const quantitiesByRank = new Map();
+
+    for (const lot of lots) {
+      if (!Number.isFinite(lot.rank) || lot.rank < 1 || lot.rank > 4) continue;
+      quantitiesByRank.set(lot.rank, (quantitiesByRank.get(lot.rank) || 0) + lot.quantity);
+    }
+
+    return [...quantitiesByRank.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([rank, quantity]) => ({
+        rank,
+        probability: rankSurvivalProbability(total, drawn, quantity)
+      }));
+  }
+
+  function rankSurvivalProbability(total, drawn, quantity) {
+    if (!total || !quantity) return NaN;
+    if (drawn < quantity) return 100;
+    const allDrawnProbability = Math.exp(logCombination(total - quantity, drawn - quantity) - logCombination(total, drawn));
+    return (1 - allDrawnProbability) * 100;
+  }
+
+  function logCombination(n, k) {
+    if (k < 0 || k > n) return Number.NEGATIVE_INFINITY;
+    const iterations = Math.min(k, n - k);
+    let total = 0;
+
+    for (let i = 1; i <= iterations; i += 1) {
+      total += Math.log(n - iterations + i) - Math.log(i);
+    }
+
+    return total;
   }
 
   function cardEvContribution(card, totalQuantity) {
