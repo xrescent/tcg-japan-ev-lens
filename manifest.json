@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "TCG Japan EV Lens",
+  "version": "0.1.0",
+  "description": "Shows expected value for TCG Japan gacha pools with SNKRDUNK sales data.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://tcg-japan.com/*",
+    "https://api.oripal-world.com/*",
+    "https://snkrdunk.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://tcg-japan.com/*"],
+      "js": ["src/content.js"],
+      "css": ["src/styles.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "TCG Japan EV Lens"
+  }
+}

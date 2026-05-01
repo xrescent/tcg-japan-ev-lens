@@ -1,0 +1,547 @@
+#tcg-ev-lens-root {
+  color-scheme: light;
+  font-family: Inter, "Noto Sans TC", "Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0;
+  position: fixed;
+  right: 18px;
+  top: 88px;
+  width: min(420px, calc(100vw - 24px));
+  z-index: 2147483647;
+}
+
+#tcg-ev-lens-root,
+#tcg-ev-lens-root * {
+  box-sizing: border-box;
+}
+
+.tcg-ev-shell {
+  background: #f8faf9;
+  border: 1px solid rgba(21, 33, 41, .16);
+  border-radius: 8px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, .22);
+  color: #18212b;
+  overflow: hidden;
+}
+
+.tcg-ev-header {
+  align-items: center;
+  background: #18212b;
+  color: #fff;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-height: 64px;
+  padding: 12px;
+}
+
+.tcg-ev-kicker {
+  color: #8fd2c7;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.25;
+}
+
+.tcg-ev-header h2 {
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  display: -webkit-box;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.35;
+  margin: 2px 0 0;
+  max-width: 245px;
+  overflow: hidden;
+}
+
+.tcg-ev-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.tcg-ev-actions button {
+  background: rgba(255, 255, 255, .12);
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  height: 32px;
+  padding: 0 10px;
+}
+
+.tcg-ev-actions button:hover {
+  background: rgba(255, 255, 255, .2);
+}
+
+.tcg-ev-body {
+  max-height: min(76vh, 760px);
+  overflow: auto;
+}
+
+.is-collapsed .tcg-ev-body {
+  display: none;
+}
+
+.tcg-ev-summary {
+  background: #fff;
+  border-bottom: 1px solid #dde5e3;
+  padding: 12px;
+}
+
+.tcg-ev-main-metric {
+  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.tcg-ev-main-metric span,
+.tcg-ev-grid span {
+  color: #63727d;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.tcg-ev-main-metric strong {
+  color: #0f766e;
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.tcg-ev-summary.is-bad .tcg-ev-main-metric strong {
+  color: #c2410c;
+}
+
+.tcg-ev-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.tcg-ev-grid div {
+  background: #eef5f3;
+  border: 1px solid #dce8e5;
+  border-radius: 6px;
+  min-width: 0;
+  padding: 8px;
+}
+
+.tcg-ev-grid strong {
+  color: #18212b;
+  display: block;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.3;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.tcg-ev-summary.is-good .tcg-ev-grid div:nth-child(3) strong {
+  color: #0f766e;
+}
+
+.tcg-ev-summary.is-bad .tcg-ev-grid div:nth-child(3) strong {
+  color: #c2410c;
+}
+
+.tcg-ev-grid .tcg-ev-coverage.is-complete {
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.tcg-ev-grid .tcg-ev-coverage.is-complete span,
+.tcg-ev-grid .tcg-ev-coverage.is-complete strong {
+  color: #166534;
+}
+
+.tcg-ev-grid .tcg-ev-coverage.is-incomplete {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.tcg-ev-grid .tcg-ev-coverage.is-incomplete span,
+.tcg-ev-grid .tcg-ev-coverage.is-incomplete strong {
+  color: #991b1b;
+}
+
+.tcg-ev-grid .tcg-ev-coverage.is-pending {
+  background: #eef5f3;
+  border-color: #dce8e5;
+}
+
+.tcg-ev-note {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  color: #9a3412;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  margin: 10px 0 0;
+  padding: 8px;
+}
+
+.tcg-ev-bulk {
+  background: #f1f6f4;
+  border-bottom: 1px solid #d9e3e1;
+  padding: 10px 12px;
+}
+
+.tcg-ev-bulk-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.tcg-ev-bulk-head div {
+  min-width: 0;
+}
+
+.tcg-ev-bulk-head strong {
+  color: #18212b;
+  display: block;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.tcg-ev-bulk-head span {
+  color: #63727d;
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.45;
+  margin-top: 2px;
+}
+
+.tcg-ev-check {
+  align-items: center;
+  color: #18212b;
+  display: flex;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 900;
+  gap: 5px;
+  line-height: 1.25;
+  min-height: 24px;
+  white-space: nowrap;
+}
+
+.tcg-ev-check input {
+  accent-color: #0f766e;
+  height: 14px;
+  margin: 0;
+  width: 14px;
+}
+
+.tcg-ev-bulk-row {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 28px minmax(0, 1fr) 54px 54px 44px;
+  margin-top: 6px;
+}
+
+.tcg-ev-bulk-row > span {
+  color: #18212b;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.tcg-ev-bulk-row label {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #cbd8d5;
+  border-radius: 6px;
+  color: #63727d;
+  display: flex;
+  font-size: 11px;
+  font-weight: 900;
+  gap: 3px;
+  height: 32px;
+  padding: 0 6px;
+}
+
+.tcg-ev-bulk-row input {
+  border: 0;
+  color: #18212b;
+  font-size: 12px;
+  font-weight: 900;
+  min-width: 0;
+  outline: 0;
+  width: 100%;
+}
+
+.tcg-ev-bulk-row button {
+  background: #18212b;
+  border: 0;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 900;
+  height: 32px;
+}
+
+.tcg-ev-bulk-row button:nth-of-type(2) {
+  background: #fff;
+  border: 1px solid #cbd8d5;
+  color: #18212b;
+}
+
+.tcg-ev-bulk-row button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+.tcg-ev-bulk-row small {
+  color: #63727d;
+  font-size: 10px;
+  font-weight: 900;
+  text-align: right;
+}
+
+.tcg-ev-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+}
+
+.tcg-ev-empty {
+  color: #63727d;
+  font-size: 13px;
+  margin: 8px 0;
+  text-align: center;
+}
+
+.tcg-ev-card {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #d9e3e1;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 34px 42px minmax(0, 1fr) 112px;
+  min-height: 92px;
+  padding: 8px;
+}
+
+.tcg-ev-card.has-warning {
+  border-color: #f6c6a5;
+}
+
+.tcg-ev-card.is-unpriced {
+  background: #fff1f2;
+  border-color: #fb7185;
+}
+
+.tcg-ev-card.is-unpriced .tcg-ev-card-meta span {
+  background: #ffe4e6;
+  color: #9f1239;
+}
+
+.tcg-ev-rank {
+  align-items: center;
+  background: #18212b;
+  border-radius: 6px;
+  color: #fff;
+  display: flex;
+  font-size: 12px;
+  font-weight: 900;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.tcg-ev-card img {
+  aspect-ratio: .716;
+  border-radius: 4px;
+  object-fit: cover;
+  width: 42px;
+}
+
+.tcg-ev-card-main {
+  min-width: 0;
+}
+
+.tcg-ev-card-name {
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  color: #18212b;
+  display: -webkit-box;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.35;
+  overflow: hidden;
+}
+
+.tcg-ev-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.tcg-ev-card-meta span {
+  background: #eef5f3;
+  border-radius: 4px;
+  color: #465761;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  padding: 3px 5px;
+}
+
+.tcg-ev-warning {
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.45;
+  margin: 6px 0 0;
+}
+
+.tcg-ev-card-price {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.tcg-ev-card-price strong {
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 950;
+  line-height: 1.2;
+}
+
+.tcg-ev-card-price span {
+  color: #63727d;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.tcg-ev-card-price label {
+  align-items: center;
+  color: #63727d;
+  display: flex;
+  font-size: 10px;
+  font-weight: 800;
+  gap: 4px;
+}
+
+.tcg-ev-card-price input {
+  border: 1px solid #cbd8d5;
+  border-radius: 5px;
+  color: #18212b;
+  font-size: 11px;
+  font-weight: 800;
+  height: 24px;
+  padding: 2px 5px;
+  width: 68px;
+}
+
+.tcg-ev-card-links {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.tcg-ev-card-links a {
+  color: #065fd4;
+  font-size: 10px;
+  font-weight: 900;
+  text-decoration: underline;
+}
+
+.tcg-ev-footer {
+  align-items: center;
+  border-top: 1px solid #dde5e3;
+  color: #63727d;
+  display: flex;
+  font-size: 11px;
+  font-weight: 800;
+  gap: 8px;
+  justify-content: space-between;
+  line-height: 1.4;
+  padding: 10px 12px;
+}
+
+@media (max-width: 900px) {
+  #tcg-ev-lens-root {
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+    top: auto;
+    width: auto;
+  }
+
+  .tcg-ev-body {
+    max-height: 64vh;
+  }
+}
+
+@media (max-width: 520px) {
+  .tcg-ev-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tcg-ev-header h2 {
+    max-width: 100%;
+  }
+
+  .tcg-ev-actions {
+    width: 100%;
+  }
+
+  .tcg-ev-actions button {
+    flex: 1 1;
+  }
+
+  .tcg-ev-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tcg-ev-bulk {
+    padding: 10px;
+  }
+
+  .tcg-ev-bulk-head {
+    flex-direction: column;
+  }
+
+  .tcg-ev-check {
+    white-space: normal;
+  }
+
+  .tcg-ev-bulk-row {
+    grid-template-columns: 28px minmax(0, 1fr) 48px 48px;
+  }
+
+  .tcg-ev-bulk-row small {
+    grid-column: 2 / -1;
+    text-align: left;
+  }
+
+  .tcg-ev-card {
+    grid-template-columns: 32px 40px minmax(0, 1fr);
+  }
+
+  .tcg-ev-card-price {
+    align-items: stretch;
+    grid-column: 1 / -1;
+  }
+
+  .tcg-ev-card-price label {
+    justify-content: flex-end;
+  }
+}
