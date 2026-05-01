@@ -201,14 +201,64 @@
 }
 
 .tcg-ev-remaining-head strong {
+  align-items: center;
   color: #18212b;
-  display: block;
+  display: flex;
   font-size: 12px;
   font-weight: 950;
+  gap: 5px;
   line-height: 1.35;
 }
 
-.tcg-ev-remaining-head span {
+.tcg-ev-info-hint {
+  align-items: center;
+  background: #18212b;
+  border-radius: 999px;
+  color: #fff;
+  cursor: help;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 950;
+  height: 15px;
+  justify-content: center;
+  line-height: 1;
+  position: relative;
+  width: 15px;
+}
+
+.tcg-ev-info-hint::after {
+  background: #18212b;
+  border-radius: 6px;
+  bottom: calc(100% + 8px);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .24);
+  color: #fff;
+  content: attr(data-tcg-ev-tooltip);
+  font-size: 10px;
+  font-weight: 800;
+  left: 50%;
+  line-height: 1.45;
+  max-width: 250px;
+  opacity: 0;
+  padding: 8px;
+  pointer-events: none;
+  position: absolute;
+  transform: translate(-50%, 4px);
+  transition: opacity .12s ease, transform .12s ease;
+  visibility: hidden;
+  width: max-content;
+  white-space: normal;
+  z-index: 1;
+}
+
+.tcg-ev-info-hint:hover::after,
+.tcg-ev-info-hint:focus::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  visibility: visible;
+}
+
+.tcg-ev-remaining-head span:not(.tcg-ev-info-hint) {
   color: #63727d;
   display: block;
   font-size: 10px;
@@ -243,6 +293,21 @@
   padding: 7px;
 }
 
+.tcg-ev-remaining-grid .is-neutral {
+  background: #fef9c3;
+  border-color: #fde68a;
+}
+
+.tcg-ev-remaining-grid .is-conservative {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.tcg-ev-remaining-grid .is-optimistic {
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
 .tcg-ev-remaining-grid span,
 .tcg-ev-survival strong {
   color: #63727d;
@@ -266,7 +331,24 @@
   display: grid;
   gap: 6px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.tcg-ev-survival-block {
   margin-top: 8px;
+}
+
+.tcg-ev-survival-head {
+  margin-bottom: 5px;
+}
+
+.tcg-ev-survival-head strong {
+  align-items: center;
+  color: #18212b;
+  display: flex;
+  font-size: 11px;
+  font-weight: 950;
+  gap: 5px;
+  line-height: 1.35;
 }
 
 .tcg-ev-survival div {
@@ -353,7 +435,7 @@
   align-items: center;
   display: grid;
   gap: 6px;
-  grid-template-columns: 28px minmax(0, 1fr) 54px 54px 44px;
+  grid-template-columns: 28px minmax(0, 1fr) 54px 54px;
   margin-top: 6px;
 }
 
@@ -407,13 +489,6 @@
 .tcg-ev-bulk-row button:disabled {
   cursor: not-allowed;
   opacity: .45;
-}
-
-.tcg-ev-bulk-row small {
-  color: #63727d;
-  font-size: 10px;
-  font-weight: 900;
-  text-align: right;
 }
 
 .tcg-ev-last-prize {
@@ -852,7 +927,7 @@
     flex-direction: column;
   }
 
-  .tcg-ev-remaining-head span {
+  .tcg-ev-remaining-head span:not(.tcg-ev-info-hint) {
     white-space: normal;
   }
 
@@ -878,11 +953,6 @@
 
   .tcg-ev-bulk-row {
     grid-template-columns: 28px minmax(0, 1fr) 48px 48px;
-  }
-
-  .tcg-ev-bulk-row small {
-    grid-column: 2 / -1;
-    text-align: left;
   }
 
   .tcg-ev-last-prize-head {

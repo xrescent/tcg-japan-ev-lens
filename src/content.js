@@ -346,7 +346,6 @@
         </label>
         <button type="button" data-tcg-ev-action="apply-rank-price" data-tcg-ev-rank="${rank}"${disabled}>套用</button>
         <button type="button" data-tcg-ev-action="clear-rank-price" data-tcg-ev-rank="${rank}"${disabled}>清除</button>
-        <small>${count} 張</small>
       </div>
     `;
   }
@@ -432,26 +431,49 @@
       <section class="tcg-ev-remaining ${coverageClass}" data-tcg-ev-remaining>
         <div class="tcg-ev-remaining-head">
           <div>
-            <strong>剩餘抽分析</strong>
+            <strong>
+              剩餘抽分析
+              <span
+                class="tcg-ev-info-hint"
+                tabindex="0"
+                aria-label="中性 EV 假設已抽走的獎項隨機分布；保守 EV 假設已抽走的是最高價獎項；樂觀 EV 假設已抽走的是最低價獎項。"
+                data-tcg-ev-tooltip="中性：假設已抽走獎項隨機分布。保守：假設最高價獎項先被抽走。樂觀：假設最低價獎項先被抽走。"
+              >i</span>
+            </strong>
             <span>${analysis.remaining} / ${analysis.total} 抽剩餘，已抽 ${analysis.drawn} 抽</span>
           </div>
           <span>${analysis.coverageComplete ? "估價完整" : `缺 ${analysis.unpricedQuantity} 抽估價`}</span>
         </div>
         <div class="tcg-ev-remaining-grid">
-          <div>
+          <div class="is-neutral">
             <span>中性 EV</span>
             <strong>${formatYen(analysis.neutralEv)}</strong>
           </div>
-          <div>
+          <div class="is-conservative">
             <span>保守 EV</span>
             <strong>${formatYen(analysis.conservativeEv)}</strong>
           </div>
-          <div>
+          <div class="is-optimistic">
             <span>樂觀 EV</span>
             <strong>${formatYen(analysis.optimisticEv)}</strong>
           </div>
         </div>
-        ${survivalRows ? `<div class="tcg-ev-survival">${survivalRows}</div>` : ""}
+        ${survivalRows ? `
+          <div class="tcg-ev-survival-block">
+            <div class="tcg-ev-survival-head">
+              <strong>
+                Rank 存活率
+                <span
+                  class="tcg-ev-info-hint"
+                  tabindex="0"
+                  aria-label="Rank 存活率代表至少還有一個該 Rank 獎項仍在剩餘池內的機率，不是 EV 佔比，也不是單抽中獎率。"
+                  data-tcg-ev-tooltip="代表至少還有一個該 Rank 獎項仍在剩餘池內的機率；不是 EV 佔比，也不是單抽中獎率。"
+                >i</span>
+              </strong>
+            </div>
+            <div class="tcg-ev-survival">${survivalRows}</div>
+          </div>
+        ` : ""}
       </section>
     `;
   }
@@ -536,7 +558,7 @@
           <span class="tcg-ev-rank-group-title">${escapeHtml(rankLabel)} 獎項</span>
           <span class="tcg-ev-rank-group-toggle">${collapsed ? "展開" : "收合"}</span>
           <span class="tcg-ev-rank-group-metrics">
-            <span class="tcg-ev-rank-group-meta" data-tcg-ev-rank-group-meta>${group.cards.length} 項 / ${group.quantity} 抽</span>
+            <span class="tcg-ev-rank-group-meta" data-tcg-ev-rank-group-meta>${rankGroupMetaText(group)}</span>
             <span class="tcg-ev-rank-group-ev" data-tcg-ev-rank-group-ev>${escapeHtml(rankContributionText(group))}</span>
             ${unpricedLabel}
           </span>
@@ -668,7 +690,7 @@
     if (!group || !section) return;
 
     section.classList.toggle("has-unpriced", group.unpricedCount > 0);
-    setText(section, "[data-tcg-ev-rank-group-meta]", `${group.cards.length} 項 / ${group.quantity} 抽`);
+    setText(section, "[data-tcg-ev-rank-group-meta]", rankGroupMetaText(group));
     setText(section, "[data-tcg-ev-rank-group-ev]", rankContributionText(group));
 
     const statusNode = section.querySelector("[data-tcg-ev-rank-group-status]");
@@ -1204,6 +1226,10 @@
 
   function rankContributionText(group) {
     return `貢獻 ${formatYen(group.evContribution)} / 佔 ${formatPercent(group.evShare)}`;
+  }
+
+  function rankGroupMetaText(group) {
+    return `${group.cards.length}種 共 ${group.quantity}抽`;
   }
 
   function sourceText(data, manualPrice) {

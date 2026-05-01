@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.4
+
+### Added
+
+- Added information hints explaining remaining-draw EV assumptions and Rank survival rate.
+- Added a `Rank 存活率` label above R1-R4 survival probabilities.
+
+### Changed
+
+- Colored remaining-draw EV scenarios: neutral yellow, conservative red, and optimistic green.
+- Changed Rank group quantity text from `x 項 / y 抽` to `x種 共 y抽`.
+- Removed the redundant `x 張` count from the R3/R4 fixed-value controls.
+
 ## 0.1.3
 
 ### Added
