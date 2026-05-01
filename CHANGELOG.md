@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.6
+
+### Added
+
+- Added Clove support for pages such as `https://oripa.clove.jp/zh-TW/oripa/All/cmoif1acp001vs601r30gq9c0`.
+- Added parsing for Clove Next.js `__NEXT_DATA__` payloads, including draw cost, total draw count, remaining draw count, FIRST/SECOND/THIRD/FOURTH prize tiers, PSA state, and displayed prize metadata.
+- Added Clove host permissions and content-script matching.
+
+### Changed
+
+- Clove FIRST/SECOND/THIRD/FOURTH prize tiers are mapped into the existing R1/R2/R3/R4 EV UI.
+- Clove lower-tier lineups without public quantities are represented as a manual `未公開下位獎 / 安慰獎` row for the undisclosed remaining draw count, rather than pretending exact lower-tier distribution is known.
+- Clove prizes with a public reference price now fall back to that value when SNKRDUNK cannot find a matching item or condition chart, with the UI marking the value as `Clove參考價`.
+
 ## 0.1.5
 
 ### Added

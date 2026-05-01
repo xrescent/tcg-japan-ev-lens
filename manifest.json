@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Gacha EV Lens",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Shows expected value for gacha pools with SNKRDUNK sales data.",
   "permissions": ["storage"],
   "host_permissions": [
     "https://tcg-japan.com/*",
     "https://api.oripal-world.com/*",
     "https://dopa-global.com/*",
+    "https://oripa.clove.jp/*",
     "https://snkrdunk.com/*"
   ],
   "background": {
@@ -16,7 +17,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://tcg-japan.com/*", "https://dopa-global.com/*"],
+      "matches": ["https://tcg-japan.com/*", "https://dopa-global.com/*", "https://oripa.clove.jp/*"],
       "js": ["src/content.js"],
       "css": ["src/styles.css"],
       "run_at": "document_idle"

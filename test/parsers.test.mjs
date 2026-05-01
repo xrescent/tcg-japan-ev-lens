@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   buildConsolationPrizeSummary,
   buildSnkrdunkSearchQuery,
+  parseClovePackageHtml,
   parseDopaPackageHtml,
   parseLatestSalesPoint,
   parseSalesHistoryOptions,
@@ -191,5 +192,101 @@ assert.equal(dopaPackage.package_cards[1].rank, 4);
 assert.equal(dopaPackage.package_cards[1].product_type, "pack");
 assert.equal(dopaPackage.package_cards[2].rank, 9);
 assert.equal(buildSnkrdunkSearchQuery(dopaPackage.package_cards[0]), "Rayquaza VMAX HR PSA10");
+
+const cloveNextData = {
+  props: {
+    pageProps: {
+      oripa: {
+        id: "cmoif1acp001vs601r30gq9c0",
+        name: "GW2026 超激熱PSA10確定",
+        price: 10000,
+        quantity: 40000,
+        remaining: 39172,
+        category: "POKEMON",
+        thumbnail: { "zh-TW": "https://storage.googleapis.com/clv_app_prd/oripa/thumbnail.png" },
+        firstDisplayedPrizesForLineup: [
+          {
+            id: "first-1",
+            prizeType: "FIRST",
+            mainDescription: "(PSA)ピカチュウ",
+            mainDescriptionEn: "PSA10 Pikachu (JP)",
+            subDescription: "",
+            kataban: "XYP 279/XY-P",
+            imageUrl: "https://storage.googleapis.com/clv_app_prd/items/pika.jpg",
+            condition: "PSA10",
+            quantity: 1,
+            referencePriceInfo: {
+              referencePrice: 4700000,
+              referencePriceUpdatedAt: "2026-05-01T00:00:15.263Z"
+            }
+          }
+        ],
+        secondDisplayedPrizesForLineup: [
+          {
+            id: "second-1",
+            prizeType: "SECOND",
+            mainDescription: "(PSA)ゲンガー&ミミッキュGX",
+            subDescription: "SR",
+            kataban: "SM9 103/095",
+            imageUrl: "https://storage.googleapis.com/clv_app_prd/items/gengar.jpg",
+            condition: "PSA10",
+            quantity: 1,
+            referencePriceInfo: { referencePrice: 550000 }
+          }
+        ],
+        thirdDisplayedPrizesForLineup: [
+          {
+            id: "third-placeholder",
+            prizeType: "THIRD",
+            mainDescription: "(PSA)リーリエのアブリボン",
+            subDescription: "AR",
+            kataban: "sv9 105/100",
+            imageUrl: "https://storage.googleapis.com/clv_app_prd/items/ribombee.jpg",
+            condition: "PSA10",
+            quantity: null
+          }
+        ],
+        fourthDisplayedPrizesForLineup: [
+          {
+            id: "fourth-placeholder",
+            prizeType: "FOURTH",
+            mainDescription: "(PSA)ARランダムPSA10",
+            subDescription: "AR",
+            kataban: "-",
+            imageUrl: "https://storage.googleapis.com/clv_app_prd/items/random.jpg",
+            condition: "PSA10",
+            quantity: null
+          }
+        ],
+        extraDisplayedPrizesForLineup: [],
+        roundNumberDisplayedPrizesForLineup: [],
+        lastOneDisplayedPrizesForLineup: []
+      }
+    }
+  },
+  query: { category: "All", oripaId: "cmoif1acp001vs601r30gq9c0" },
+  locale: "zh-TW"
+};
+const cloveHtml = `<script id="__NEXT_DATA__" type="application/json">${JSON.stringify(cloveNextData)}</script>`;
+const clovePackage = parseClovePackageHtml(cloveHtml, { packageId: "cmoif1acp001vs601r30gq9c0" });
+
+assert.equal(clovePackage.source, "clove");
+assert.equal(clovePackage.price, 10000);
+assert.equal(clovePackage.number, 40000);
+assert.equal(clovePackage.stock, 39172);
+assert.equal(clovePackage.package_cards.length, 2);
+assert.equal(clovePackage.package_cards[0].rank, 1);
+assert.equal(clovePackage.package_cards[0].number, 1);
+assert.equal(clovePackage.package_cards[0].is_psa_enabled, 1);
+assert.equal(clovePackage.package_cards[0].point, 4700000);
+assert.equal(clovePackage.package_cards[0].referencePriceUpdatedAt, "2026-05-01T00:00:15.263Z");
+assert.equal(buildSnkrdunkSearchQuery(clovePackage.package_cards[0]), "ピカチュウ XYP 279/XY-P PSA10");
+assert.deepEqual(clovePackage.consolation_prize, {
+  rank: 4,
+  quantity: 39998,
+  point: null,
+  source: "missing_clove_lower_tiers",
+  placeholderCount: 2
+});
 
 console.log("parser tests passed");

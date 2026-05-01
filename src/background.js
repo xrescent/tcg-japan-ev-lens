@@ -1,8 +1,10 @@
 import {
   buildConsolationPrizeSummary,
   buildSnkrdunkSearchQuery,
+  CLOVE_ORIPA_BASE_URL,
   DOPA_GLOBAL_BASE_URL,
   normalizePackageCards,
+  parseClovePackageHtml,
   parseDopaPackageHtml,
   parseLatestSalesPoint,
   parseSalesHistoryOptions,
@@ -15,7 +17,7 @@ import {
 } from "./parsers.js";
 
 const CACHE_TTL_MS = 30 * 60 * 1000;
-const PRICE_CACHE_VERSION = "v2";
+const PRICE_CACHE_VERSION = "v3";
 const DEFAULT_SHOP_ID = 21;
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -40,8 +42,15 @@ async function handleMessage(message) {
 }
 
 async function getPackage(payload = {}) {
+  const source = payload.source === "dopa" ? "dopa" : payload.source === "clove" ? "clove" : "tcg-japan";
+
+  if (source === "clove") {
+    const packageId = String(payload.packageId || "").trim();
+    if (!packageId) throw new Error("Invalid Clove package id.");
+    return getClovePackage(payload, packageId);
+  }
+
   const packageId = Number(payload.packageId);
-  const source = payload.source === "dopa" ? "dopa" : "tcg-japan";
 
   if (!Number.isInteger(packageId) || packageId <= 0) {
     throw new Error("Invalid package id.");
@@ -85,9 +94,37 @@ async function getDopaPackage(payload, packageId) {
   return { package: packageData };
 }
 
+async function getClovePackage(payload, packageId) {
+  const locale = normalizeCloveLocale(payload.locale);
+  const category = normalizeCloveCategory(payload.category);
+  const url = `${CLOVE_ORIPA_BASE_URL}/${locale}/oripa/${encodeURIComponent(category)}/${encodeURIComponent(packageId)}`;
+  const html = await fetchText(url);
+  const packageData = parseClovePackageHtml(html, {
+    packageId,
+    locale,
+    category
+  });
+
+  if (!packageData?.id) {
+    throw new Error("Clove page did not return package data.");
+  }
+
+  return { package: packageData };
+}
+
 function normalizeDopaLocale(locale) {
   const normalized = String(locale || "zh").toLowerCase();
   return /^[a-z]{2}(?:-[a-z]{2})?$/.test(normalized) ? normalized : "zh";
+}
+
+function normalizeCloveLocale(locale) {
+  const normalized = String(locale || "ja");
+  return /^[a-z]{2}(?:-[A-Za-z]{2})?$/.test(normalized) ? normalized : "ja";
+}
+
+function normalizeCloveCategory(category) {
+  const normalized = String(category || "All").trim();
+  return /^[\w-]+$/i.test(normalized) ? normalized : "All";
 }
 
 async function getCardPrice(payload = {}) {
@@ -96,17 +133,53 @@ async function getCardPrice(payload = {}) {
 
   const targetCondition = targetConditionForCard(card);
   const query = buildSnkrdunkSearchQuery(card);
-  const cacheKey = `${PRICE_CACHE_VERSION}:price:${encodeURIComponent(query)}:${targetCondition}`;
+  const sourceKey = card.source || "tcg-japan";
+  const cacheKey = `${PRICE_CACHE_VERSION}:price:${sourceKey}:${encodeURIComponent(query)}:${targetCondition}`;
 
   if (!payload.force) {
     const cached = await readCache(cacheKey);
-    if (cached) return { price: cached, cacheHit: true };
+    if (cached) {
+      return {
+        price: applyCloveReferencePriceFallback(card, query, targetCondition, cached),
+        cacheHit: true
+      };
+    }
   }
 
-  const price = await fetchCardPriceFromSnkrdunk(card, query, targetCondition);
+  const fetchedPrice = await fetchCardPriceFromSnkrdunk(card, query, targetCondition);
+  const price = applyCloveReferencePriceFallback(card, query, targetCondition, fetchedPrice);
   await writeCache(cacheKey, price);
 
   return { price, cacheHit: false };
+}
+
+function applyCloveReferencePriceFallback(card, query, targetCondition, fetchedPrice) {
+  const referencePrice = Number(card?.point || 0);
+  const fallbackStatuses = new Set(["not_found", "no_sales"]);
+
+  if (card?.source !== "clove" || !Number.isFinite(referencePrice) || referencePrice <= 0) {
+    return fetchedPrice;
+  }
+
+  if (!fallbackStatuses.has(fetchedPrice?.status)) return fetchedPrice;
+
+  return {
+    status: "ok",
+    source: "clove_reference_price",
+    query,
+    targetCondition,
+    price: referencePrice,
+    referencePrice,
+    referencePriceUpdatedAt: card.referencePriceUpdatedAt || card.reference_price_updated_at || "",
+    searchUrl: fetchedPrice.searchUrl || "",
+    match: fetchedPrice.match || null,
+    snkrdunkStatus: fetchedPrice.status,
+    snkrdunkSearchUrl: fetchedPrice.searchUrl || "",
+    snkrdunkTargetCondition: fetchedPrice.targetCondition || targetCondition,
+    snkrdunkMatchedListingPrice: Number.isFinite(fetchedPrice.matchedListingPrice)
+      ? fetchedPrice.matchedListingPrice
+      : null
+  };
 }
 
 async function fetchCardPriceFromSnkrdunk(card, query, targetCondition) {

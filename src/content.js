@@ -80,6 +80,7 @@
       };
       if (page.source === "tcg-japan") payload.shopId = inferShopId();
       if (page.locale) payload.locale = page.locale;
+      if (page.category) payload.category = page.category;
 
       const response = await sendMessage("GET_PACKAGE", payload);
 
@@ -153,7 +154,11 @@
 
     return {
       status: "manual_required",
-      reason: card?.is_consolation ? "missing_consolation_point" : "rank4_other_available",
+      reason: card?.source === "clove" && card?.is_consolation
+        ? "missing_clove_lower_tiers"
+        : card?.is_consolation
+          ? "missing_consolation_point"
+          : "rank4_other_available",
       targetCondition: isPsaPrize(card) ? `PSA${card.psa || 10}` : "B",
       query
     };
@@ -634,13 +639,20 @@
   function renderCardProblem(data, manualPrice = null) {
     if (manualPrice) return "";
     if (data.status === "manual_required") {
-      const message = data.reason === "missing_consolation_point"
-        ? "偵測到「其他可用」安慰獎，但 API 沒有 point 欄位；請手動輸入固定值。"
-        : "此 R4 區塊顯示「其他可用」，不自動估價；請手動輸入固定值。";
+      let message = "此 R4 區塊顯示「其他可用」，不自動估價；請手動輸入固定值。";
+      if (data.reason === "missing_consolation_point") {
+        message = "偵測到「其他可用」安慰獎，但 API 沒有 point 欄位；請手動輸入固定值。";
+      }
+      if (data.reason === "missing_clove_lower_tiers") {
+        message = "Clove 未公開下位獎的精確分布；請手動輸入剩餘下位獎的平均固定值。";
+      }
       return `<p class="tcg-ev-warning">${escapeHtml(message)}</p>`;
     }
     if (data.status === "not_found") {
       return `<p class="tcg-ev-warning">沒有找到足夠相似的 SNKRDUNK 商品，可手動補價。</p>`;
+    }
+    if (data.source === "clove_reference_price") {
+      return `<p class="tcg-ev-warning">SNKRDUNK 未取得 ${escapeHtml(data.snkrdunkTargetCondition || data.targetCondition || "")} 價格，已改用 Clove 參考價。</p>`;
     }
     if (data.status === "no_sales") {
       const listing = Number.isFinite(data.matchedListingPrice)
@@ -711,6 +723,7 @@
   function getCardRowClass(card, data, manualPrice) {
     return [
       !manualPrice && ["error", "not_found", "no_sales", "manual_required"].includes(data.status) ? "has-warning" : "",
+      !manualPrice && data.source === "clove_reference_price" ? "has-warning" : "",
       isUnpricedCard(card, data, manualPrice) ? "is-unpriced" : ""
     ]
       .filter(Boolean)
@@ -993,7 +1006,13 @@
     const missingQuantity = Number(summary?.quantity || 0) || computeMissingPrizeQuantity(cards, packageData);
     const shouldAppend =
       missingQuantity > 0 &&
-      (state.domSignals.rank4OtherAvailable || placeholderCount > 0 || summary?.source === "missing_rank4" || summary?.source === "api_point");
+      (
+        state.domSignals.rank4OtherAvailable ||
+        placeholderCount > 0 ||
+        summary?.source === "missing_rank4" ||
+        summary?.source === "missing_clove_lower_tiers" ||
+        summary?.source === "api_point"
+      );
 
     if (!shouldAppend) return cards;
 
@@ -1003,8 +1022,9 @@
       {
         id: `consolation-${packageData?.id || state.routeKey}`,
         package_id: packageData?.id || null,
+        source: packageData?.source || state.pageSource || "tcg-japan",
         rank: Number(summary?.rank || 4),
-        name: "其他可用 / 安慰獎",
+        name: packageData?.source === "clove" ? "未公開下位獎 / 安慰獎" : "其他可用 / 安慰獎",
         image_url: null,
         number: missingQuantity,
         point: Number.isFinite(point) && point > 0 ? point : null,
@@ -1154,6 +1174,9 @@
     if (String(hostname || "").includes("dopa-global.com")) {
       return parseDopaPackagePath(pathname);
     }
+    if (String(hostname || "").includes("oripa.clove.jp")) {
+      return parseClovePackagePath(pathname);
+    }
 
     const parts = String(pathname || "").split("/").filter(Boolean);
     if (parts.length < 2) return null;
@@ -1178,6 +1201,24 @@
       source: "dopa",
       packageTypePath: "gacha",
       locale: gachaIndex > 0 ? parts[gachaIndex - 1] : "zh",
+      packageId
+    };
+  }
+
+  function parseClovePackagePath(pathname) {
+    const parts = String(pathname || "").split("/").filter(Boolean);
+    const oripaIndex = parts.indexOf("oripa");
+    if (oripaIndex === -1 || oripaIndex >= parts.length - 2) return null;
+
+    const category = parts[oripaIndex + 1];
+    const packageId = parts[oripaIndex + 2];
+    if (!category || !packageId) return null;
+
+    return {
+      source: "clove",
+      packageTypePath: category,
+      category,
+      locale: oripaIndex > 0 ? parts[oripaIndex - 1] : "ja",
       packageId
     };
   }
@@ -1278,6 +1319,7 @@
     if (data.status === "manual_required") return "需手動";
     if (data.status === "loading") return "查詢中";
     if (data.source === "api_point") return Number.isFinite(data.price) ? `API ${data.price}pt` : "API pt";
+    if (data.source === "clove_reference_price") return "Clove參考價";
     if (data.cacheHit && data.source === "condition_chart") return `快取${data.targetCondition || ""}線圖`;
     if (data.source === "condition_chart") return `${data.targetCondition || ""}線圖`;
     if (data.status === "no_sales") return `${data.targetCondition || ""}無線圖`;
@@ -1288,6 +1330,7 @@
   function sourceLabelForPackage(packageData) {
     const source = packageData?.source || state.pageSource;
     if (source === "dopa") return "DOPA Global";
+    if (source === "clove") return "Clove";
     return "TCG Japan";
   }
 

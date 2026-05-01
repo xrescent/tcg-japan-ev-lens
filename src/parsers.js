@@ -1,6 +1,7 @@
 export const SNKRDUNK_BASE_URL = "https://snkrdunk.com";
 export const TCG_JAPAN_API_BASE_URL = "https://api.oripal-world.com";
 export const DOPA_GLOBAL_BASE_URL = "https://dopa-global.com";
+export const CLOVE_ORIPA_BASE_URL = "https://oripa.clove.jp";
 
 const KNOWN_CONDITIONS = [
   "PSA10",
@@ -63,6 +64,22 @@ export function parseDopaGlobalPackagePath(pathname) {
 
   return {
     locale: gachaIndex > 0 ? parts[gachaIndex - 1] : "zh",
+    packageId
+  };
+}
+
+export function parseCloveOripaPackagePath(pathname) {
+  const parts = String(pathname || "").split("/").filter(Boolean);
+  const oripaIndex = parts.indexOf("oripa");
+  if (oripaIndex === -1 || oripaIndex >= parts.length - 2) return null;
+
+  const category = parts[oripaIndex + 1];
+  const packageId = parts[oripaIndex + 2];
+  if (!category || !packageId) return null;
+
+  return {
+    locale: oripaIndex > 0 ? parts[oripaIndex - 1] : "ja",
+    category,
     packageId
   };
 }
@@ -144,9 +161,15 @@ export function extractCardSearchParts(card) {
     rawName,
     baseName,
     rarity: rarityMatch ? normalizeWhitespace(rarityMatch[1]) : fieldRarity,
-    cardNumber: normalizeWhitespace(braceNumber?.[1] || looseNumber?.[1] || fieldNumber || "").replace(/\s/g, ""),
+    cardNumber: normalizeCardNumber(braceNumber?.[1] || looseNumber?.[1] || fieldNumber || ""),
     psaGrade
   };
+}
+
+function normalizeCardNumber(value) {
+  const normalized = normalizeWhitespace(value);
+  if (/[a-z]/i.test(normalized)) return normalized;
+  return normalized.replace(/\s/g, "");
 }
 
 export function targetConditionForCard(card) {
@@ -359,6 +382,26 @@ export function parseDopaPackageHtml(html, options = {}) {
   }
 
   return normalizeDopaPackage(props, options);
+}
+
+export function parseClovePackageHtml(html, options = {}) {
+  const match = String(html || "").match(/<script\b[^>]*id=(["'])__NEXT_DATA__\1[^>]*>([\s\S]*?)<\/script>/i);
+  if (!match) {
+    throw new Error("Clove page did not include Next.js package data.");
+  }
+
+  const payload = JSON.parse(match[2]);
+  const oripa = payload?.props?.pageProps?.oripa;
+  if (!oripa?.id) {
+    throw new Error("Clove page did not include oripa data.");
+  }
+
+  return normalizeClovePackage(oripa, {
+    locale: payload.locale,
+    category: payload.query?.category,
+    packageId: payload.query?.oripaId,
+    ...options
+  });
 }
 
 function collectNextFlightPayload(html) {
@@ -580,4 +623,131 @@ function dopaRankToDisplayRank(rank) {
   };
 
   return map[normalized] || 4;
+}
+
+const CLOVE_PRIZE_LISTS = [
+  ["firstDisplayedPrizesForLineup", 1],
+  ["secondDisplayedPrizesForLineup", 2],
+  ["thirdDisplayedPrizesForLineup", 3],
+  ["fourthDisplayedPrizesForLineup", 4],
+  ["extraDisplayedPrizesForLineup", 2],
+  ["roundNumberDisplayedPrizesForLineup", 9],
+  ["lastOneDisplayedPrizesForLineup", 9]
+];
+
+function normalizeClovePackage(oripa, options = {}) {
+  const packageId = String(oripa.id || options.packageId || "");
+  const totalQuantity = Number(oripa.quantity || 0);
+  const listedCards = [];
+  let placeholderCount = 0;
+
+  for (const [field, rank] of CLOVE_PRIZE_LISTS) {
+    const prizes = Array.isArray(oripa[field]) ? oripa[field] : [];
+    for (const prize of prizes) {
+      const normalized = normalizeClovePrize(prize, {
+        packageId,
+        rank,
+        field
+      });
+      if (!normalized) continue;
+
+      if (Number(normalized.number) > 0 || Number(normalized.rank) === 9) {
+        listedCards.push(normalized);
+      } else {
+        placeholderCount += 1;
+      }
+    }
+  }
+
+  const listedQuantity = listedCards
+    .filter((card) => Number(card.rank) !== 9)
+    .reduce((sum, card) => sum + Number(card.number || 0), 0);
+  const missingQuantity = totalQuantity > listedQuantity ? totalQuantity - listedQuantity : 0;
+
+  return {
+    id: packageId,
+    source: "clove",
+    name: normalizeWhitespace(oripa.name || `Clove #${packageId}`),
+    image_url: localizedAssetUrl(oripa.thumbnail) || localizedAssetUrl(oripa.subImages) || "",
+    price: Number(oripa.price || 0),
+    number: totalQuantity,
+    stock: Number(oripa.remaining || 0),
+    stock_quantity: Number(oripa.remaining || 0),
+    sold: Math.max(0, totalQuantity - Number(oripa.remaining || 0)),
+    currency: "pt",
+    clove_locale: options.locale || "",
+    clove_category: options.category || oripa.category || "",
+    consolation_prize: missingQuantity > 0
+      ? {
+          rank: 4,
+          quantity: missingQuantity,
+          point: null,
+          source: "missing_clove_lower_tiers",
+          placeholderCount
+        }
+      : null,
+    package_cards: listedCards.sort((a, b) => {
+      const rankDiff = Number(a.rank || 999) - Number(b.rank || 999);
+      if (rankDiff !== 0) return rankDiff;
+      return String(a.id || "").localeCompare(String(b.id || ""));
+    })
+  };
+}
+
+function normalizeClovePrize(prize, context) {
+  if (!prize?.id) return null;
+
+  const rank = Number(context.rank || clovePrizeTypeToDisplayRank(prize.prizeType));
+  const quantity = Number(prize.quantity || 0);
+  const referencePrice = Number(prize.referencePriceInfo?.referencePrice || 0);
+  const condition = normalizeWhitespace(prize.condition || "");
+  const isPsa = /^PSA\s*10$/i.test(condition) || /PSA\s*10/i.test(prize.mainDescriptionEn || prize.mainDescription || "");
+  const name = normalizeWhitespace([condition || (isPsa ? "PSA10" : ""), prize.mainDescription || prize.mainDescriptionEn || ""]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\(PSA\)/gi, ""));
+
+  return {
+    id: `clove-${prize.id}`,
+    package_id: context.packageId || null,
+    source: "clove",
+    rank,
+    clove_prize_type: prize.prizeType || "",
+    clove_lineup_field: context.field || "",
+    name,
+    image_url: prize.imageUrl || "",
+    number: quantity > 0 ? quantity : 0,
+    point: Number.isFinite(referencePrice) && referencePrice > 0 ? referencePrice : null,
+    referencePriceUpdatedAt: prize.referencePriceInfo?.referencePriceUpdatedAt || "",
+    itemNumber: normalizeWhitespace(prize.kataban || ""),
+    rarity: normalizeWhitespace(prize.subDescription || ""),
+    product_type: isPsa ? "psa" : "raw",
+    is_psa_enabled: isPsa ? 1 : 2,
+    psa: isPsa ? 10 : null,
+    only_shipping: Boolean(prize.isShippingOnly),
+    sourceElementClass: isPsa ? "clove-prize-card clove-prize-card-psa" : "clove-prize-card"
+  };
+}
+
+function clovePrizeTypeToDisplayRank(prizeType) {
+  const map = {
+    FIRST: 1,
+    SECOND: 2,
+    THIRD: 3,
+    FOURTH: 4,
+    EXTRA: 2,
+    ROUND_NUMBER: 9,
+    LAST_ONE: 9
+  };
+
+  return map[normalizeWhitespace(prizeType).toUpperCase()] || 4;
+}
+
+function localizedAssetUrl(asset) {
+  if (!asset) return "";
+  if (typeof asset === "string") return asset;
+  if (typeof asset !== "object") return "";
+  const value = asset["zh-TW"] || asset.ja || asset.en || Object.values(asset).find(Boolean) || "";
+  if (Array.isArray(value)) return value.find(Boolean) || "";
+  return value || "";
 }
