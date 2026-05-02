@@ -3,11 +3,13 @@ import {
   buildSnkrdunkSearchQuery,
   CLOVE_ORIPA_BASE_URL,
   DOPA_GLOBAL_BASE_URL,
+  isSealedBoxCard,
   normalizePackageCards,
   parseClovePackageHtml,
   parseDopaPackageHtml,
   parseLatestSalesPoint,
   parseSalesHistoryOptions,
+  pickFirstPricedSnkrdunkResult,
   parseSnkrdunkSearchResults,
   pickBestSnkrdunkResult,
   selectSalesOptionId,
@@ -17,7 +19,7 @@ import {
 } from "./parsers.js";
 
 const CACHE_TTL_MS = 30 * 60 * 1000;
-const PRICE_CACHE_VERSION = "v3";
+const PRICE_CACHE_VERSION = "v5";
 const DEFAULT_SHOP_ID = 21;
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -189,12 +191,50 @@ async function fetchCardPriceFromSnkrdunk(card, query, targetCondition) {
   const match = pickBestSnkrdunkResult(candidates, card, targetCondition);
 
   if (!match) {
+    const firstPricedMatch = isSealedBoxCard(card) ? pickFirstPricedSnkrdunkResult(candidates) : null;
+    if (firstPricedMatch) {
+      return {
+        status: "ok",
+        source: "snkrdunk_first_result_price",
+        query,
+        searchUrl,
+        targetCondition,
+        match: firstPricedMatch,
+        price: firstPricedMatch.salePrice,
+        matchStrategy: "sealed_box_first_priced_result",
+        candidates: candidates.slice(0, 5)
+      };
+    }
+
     return {
       status: "not_found",
       query,
       searchUrl,
       targetCondition,
       candidates: candidates.slice(0, 5)
+    };
+  }
+
+  if (isSealedBoxCard(card)) {
+    if (Number.isFinite(match.salePrice) && match.salePrice > 0) {
+      return {
+        status: "ok",
+        source: "snkrdunk_search_price",
+        query,
+        searchUrl,
+        targetCondition,
+        match,
+        price: match.salePrice
+      };
+    }
+
+    return {
+      status: "no_sales",
+      query,
+      searchUrl,
+      targetCondition,
+      match,
+      matchedListingPrice: null
     };
   }
 

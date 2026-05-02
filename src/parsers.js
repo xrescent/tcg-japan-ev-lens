@@ -135,10 +135,11 @@ export function isPsaCard(card) {
 
 export function extractCardSearchParts(card) {
   const rawName = normalizeWhitespace(card?.name || "");
-  const psaMatch = rawName.match(/PSA\s*([0-9]+)/i);
-  const braceNumber = rawName.match(/\{([^}]+)\}/);
-  const looseNumber = rawName.match(/([0-9]{2,3}\s*\/\s*[0-9]{2,3})/);
-  const rarityMatch = rawName.match(/【([^】]+)】/);
+  const searchableName = stripLeadingSealedBoxLabel(rawName);
+  const psaMatch = searchableName.match(/PSA\s*([0-9]+)/i);
+  const braceNumber = searchableName.match(/\{([^}]+)\}/);
+  const looseNumber = searchableName.match(/([0-9]{2,3}\s*\/\s*[0-9]{2,3})/);
+  const rarityMatch = searchableName.match(/【([^】]+)】/);
   const fieldRarity = normalizeWhitespace(card?.rarity || "");
   const fieldNumber = normalizeWhitespace(card?.itemNumber || card?.item_number || card?.cardNumber || "");
   const psaGrade = isPsaCard(card)
@@ -146,7 +147,7 @@ export function extractCardSearchParts(card) {
     : null;
 
   const baseName = normalizeWhitespace(
-    rawName
+    searchableName
       .replace(/〔[^〕]*PSA\s*\d+[^〕]*〕/gi, "")
       .replace(/\((?:Japanese|English|Korean|Chinese)\)/gi, "")
       .replace(/\(\s*PSA\s*\d+\s*\)/gi, "")
@@ -166,27 +167,64 @@ export function extractCardSearchParts(card) {
   };
 }
 
+function stripLeadingSealedBoxLabel(value) {
+  return normalizeWhitespace(
+    String(value || "").replace(/^RAW\s*\d+\s*[\(（]\s*未開封\s*BOX\s*[\)）]\s*/i, "")
+  );
+}
+
 function normalizeCardNumber(value) {
   const normalized = normalizeWhitespace(value);
+  if (/^[-ー―]+$/.test(normalized)) return "";
   if (/[a-z]/i.test(normalized)) return normalized;
   return normalized.replace(/\s/g, "");
 }
 
 export function targetConditionForCard(card) {
+  if (isSealedBoxCard(card)) return "sealed_box";
+
   const parts = extractCardSearchParts(card);
   return parts.psaGrade ? `PSA${parts.psaGrade}` : "B";
 }
 
 export function buildSnkrdunkSearchQuery(card) {
+  if (isSealedBoxCard(card)) {
+    return buildSealedBoxSearchQuery(card);
+  }
+
   const parts = extractCardSearchParts(card);
   return [parts.baseName, parts.rarity, parts.cardNumber, parts.psaGrade ? `PSA${parts.psaGrade}` : ""]
     .filter(Boolean)
     .join(" ");
 }
 
+export function isSealedBoxCard(card) {
+  return (
+    String(card?.product_type || card?.productType || "").toLowerCase() === "sealed_box" ||
+    /^RAW\s*\d+\s*[\(（]\s*未開封\s*BOX\s*[\)）]/i.test(String(card?.name || ""))
+  );
+}
+
+function buildSealedBoxSearchQuery(card) {
+  const setName = normalizeSealedBoxSetName(stripLeadingSealedBoxLabel(card?.name || ""));
+  return setName ? `${setName} ボックス` : stripLeadingSealedBoxLabel(card?.name || "");
+}
+
+function normalizeSealedBoxSetName(value) {
+  return normalizeWhitespace(
+    String(value || "")
+      .replace(/^ポケモンカードゲーム\s*/i, "")
+      .replace(/^(?:ソード\s*&\s*シールド|スカーレット\s*&\s*バイオレット|MEGA)\s*/i, "")
+      .replace(/^(?:ハイクラスパック|強化拡張パック|拡張パック)\s*/i, "")
+      .replace(/(?:BOX|ボックス)$/i, "")
+      .replace(/^["“”「」『』]+|["“”「」『』]+$/g, "")
+  );
+}
+
 export function normalizeForCompare(value) {
   return normalizeWhitespace(value)
     .toLocaleLowerCase("ja-JP")
+    .replace(/\bbox\b/gi, "ボックス")
     .replace(/[【】〔〕\[\]{}()（）"']/g, " ")
     .replace(/\s+/g, "");
 }
@@ -260,7 +298,7 @@ function dedupeSearchResults(results) {
 export function scoreSnkrdunkResult(result, card, targetCondition = targetConditionForCard(card)) {
   const parts = extractCardSearchParts(card);
   const title = normalizeForCompare(result?.title || "");
-  const base = normalizeForCompare(parts.baseName);
+  const base = normalizeForCompare(isSealedBoxCard(card) ? buildSealedBoxSearchQuery(card) : parts.baseName);
   const rarity = normalizeForCompare(parts.rarity);
   const cardNumber = normalizeForCompare(parts.cardNumber);
   const condition = normalizeWhitespace(result?.condition || "");
@@ -292,6 +330,10 @@ export function pickBestSnkrdunkResult(results, card, targetCondition = targetCo
   const best = scored[0];
   if (!best || best.score < 8) return null;
   return best.result;
+}
+
+export function pickFirstPricedSnkrdunkResult(results) {
+  return (results || []).find((result) => Number.isFinite(result?.salePrice) && result.salePrice > 0) || null;
 }
 
 function getAttribute(tag, name) {
@@ -701,6 +743,7 @@ function normalizeClovePrize(prize, context) {
   const quantity = Number(prize.quantity || 0);
   const referencePrice = Number(prize.referencePriceInfo?.referencePrice || 0);
   const condition = normalizeWhitespace(prize.condition || "");
+  const isSealedBox = /^RAW\s*\d+$/i.test(condition) || /未開封\s*BOX/i.test(prize.mainDescription || prize.mainDescriptionEn || "");
   const isPsa = /^PSA\s*10$/i.test(condition) || /PSA\s*10/i.test(prize.mainDescriptionEn || prize.mainDescription || "");
   const name = normalizeWhitespace([condition || (isPsa ? "PSA10" : ""), prize.mainDescription || prize.mainDescriptionEn || ""]
     .filter(Boolean)
@@ -721,7 +764,7 @@ function normalizeClovePrize(prize, context) {
     referencePriceUpdatedAt: prize.referencePriceInfo?.referencePriceUpdatedAt || "",
     itemNumber: normalizeWhitespace(prize.kataban || ""),
     rarity: normalizeWhitespace(prize.subDescription || ""),
-    product_type: isPsa ? "psa" : "raw",
+    product_type: isPsa ? "psa" : isSealedBox ? "sealed_box" : "raw",
     is_psa_enabled: isPsa ? 1 : 2,
     psa: isPsa ? 10 : null,
     only_shipping: Boolean(prize.isShippingOnly),

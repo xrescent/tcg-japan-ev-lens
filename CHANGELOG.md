@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.7
+
+### Changed
+
+- Clove sealed box prizes with names starting with `RAW5 (未開封BOX)` now search SNKRDUNK with the format `x ボックス` after extracting the core box name.
+- Clove sealed box rows now display `未開封BOX` instead of `B品` in the condition label.
+- Clove sealed boxes/packs now use the visible SNKRDUNK search-result price directly when present, without applying PSA/B condition chart logic.
+- Clove sealed boxes/packs now fall back to the first priced SNKRDUNK search result when strict matching fails.
+- Search query cleanup now ignores placeholder card numbers such as `-`.
+
 ## 0.1.6
 
 ### Added

@@ -1252,6 +1252,13 @@
         .join(" ");
     }
 
+    if (card?.source === "clove" && String(card?.product_type || "").toLowerCase() === "sealed_box") {
+      const setName = normalizeSealedBoxSetName(
+        String(card?.name || "").replace(/^RAW\s*\d+\s*[\(（]\s*未開封\s*BOX\s*[\)）]\s*/i, "")
+      );
+      return setName ? `${setName} ボックス` : normalizeText(card?.name || "");
+    }
+
     const name = String(card?.name || "")
       .replace(/〔[^〕]*PSA\s*\d+[^〕]*〕/gi, "")
       .replace(/\((?:Japanese|English|Korean|Chinese)\)/gi, "")
@@ -1271,12 +1278,24 @@
       .join(" ");
   }
 
+  function normalizeSealedBoxSetName(value) {
+    return normalizeText(
+      String(value || "")
+        .replace(/^ポケモンカードゲーム\s*/i, "")
+        .replace(/^(?:ソード\s*&\s*シールド|スカーレット\s*&\s*バイオレット|MEGA)\s*/i, "")
+        .replace(/^(?:ハイクラスパック|強化拡張パック|拡張パック)\s*/i, "")
+        .replace(/(?:BOX|ボックス)$/i, "")
+        .replace(/^["“”「」『』]+|["“”「」『』]+$/g, "")
+    );
+  }
+
   function conditionLabel(card, data) {
     if (card?.is_consolation) {
       const point = Number(data?.source === "api_point" ? data.price : card.point);
       return Number.isFinite(point) && point > 0 ? `安慰獎 ${point}pt` : "安慰獎";
     }
     if (card?.source === "dopa" && String(card?.product_type || "").toLowerCase() === "pack") return "商品/未鑑定";
+    if (card?.source === "clove" && String(card?.product_type || "").toLowerCase() === "sealed_box") return "未開封BOX";
     return isPsaPrize(card) ? `PSA${card.psa || 10}` : "B品";
   }
 
@@ -1320,6 +1339,8 @@
     if (data.status === "loading") return "查詢中";
     if (data.source === "api_point") return Number.isFinite(data.price) ? `API ${data.price}pt` : "API pt";
     if (data.source === "clove_reference_price") return "Clove參考價";
+    if (data.source === "snkrdunk_first_result_price") return "SNKRDUNK第一件";
+    if (data.source === "snkrdunk_search_price") return "SNKRDUNK表示價";
     if (data.cacheHit && data.source === "condition_chart") return `快取${data.targetCondition || ""}線圖`;
     if (data.source === "condition_chart") return `${data.targetCondition || ""}線圖`;
     if (data.status === "no_sales") return `${data.targetCondition || ""}無線圖`;

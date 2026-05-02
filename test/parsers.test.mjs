@@ -8,6 +8,7 @@ import {
   parseSalesHistoryOptions,
   parseSnkrdunkSearchResults,
   pickBestSnkrdunkResult,
+  pickFirstPricedSnkrdunkResult,
   selectSalesOptionId,
   targetConditionForCard
 } from "../src/parsers.js";
@@ -38,6 +39,41 @@ assert.equal(buildSnkrdunkSearchQuery(psaCard), "メガルカリオex MUR 092/06
 assert.equal(targetConditionForCard(rawCardWithPsaApiValue), "B");
 assert.equal(buildSnkrdunkSearchQuery(rawCardWithPsaApiValue), "チルタリスex SAR 090/066");
 assert.equal(targetConditionForCard(classMarkedPsaCard), "PSA10");
+
+const cloveSealedBoxPrize = {
+  id: "box-1",
+  source: "clove",
+  name: "RAW5 (未開封BOX) ポケモンカードゲーム ソード&シールド ハイクラスパック VSTARユニバース BOX",
+  itemNumber: "-",
+  product_type: "sealed_box"
+};
+assert.equal(targetConditionForCard(cloveSealedBoxPrize), "sealed_box");
+assert.equal(
+  buildSnkrdunkSearchQuery(cloveSealedBoxPrize),
+  "VSTARユニバース ボックス"
+);
+
+const boxSearchHtml = `
+  <a href="https://snkrdunk.com/apparels/222222/used/1" aria-label="強化拡張パック VSTARユニバース BOX - ¥25,000">
+    <span>強化拡張パック VSTARユニバース BOX</span>
+  </a>
+`;
+const boxSearchResults = parseSnkrdunkSearchResults(boxSearchHtml);
+assert.equal(boxSearchResults[0].salePrice, 25000);
+assert.equal(
+  pickBestSnkrdunkResult(boxSearchResults, cloveSealedBoxPrize, targetConditionForCard(cloveSealedBoxPrize))?.productId,
+  222222
+);
+
+const firstPricedBoxHtml = `
+  <a href="https://snkrdunk.com/apparels/333333/used/1" aria-label="テラスタルフェスex ボックス - ¥24,000">
+    <span>テラスタルフェスex ボックス</span>
+  </a>
+  <a href="https://snkrdunk.com/apparels/444444/used/1" aria-label="テラスタルフェスex パック - ¥1,000">
+    <span>テラスタルフェスex パック</span>
+  </a>
+`;
+assert.equal(pickFirstPricedSnkrdunkResult(parseSnkrdunkSearchResults(firstPricedBoxHtml))?.salePrice, 24000);
 
 const searchHtml = `
   <a href="https://snkrdunk.com/apparels/663638/used/43365776" aria-label="メガルカリオex MUR [M1L 092/063](拡張パック&quot;メガブレイブ&quot;) - ¥220,000">
